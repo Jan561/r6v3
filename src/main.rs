@@ -9,7 +9,7 @@ use command::ping::PING_COMMAND;
 use serenity::async_trait;
 use serenity::client::{Client, EventHandler};
 use serenity::framework::standard::{
-    macros::{command, group},
+    macros::group,
     StandardFramework,
 };
 use std::collections::HashSet;
