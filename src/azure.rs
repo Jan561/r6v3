@@ -1,13 +1,19 @@
-mod authentication;
+pub mod authentication;
 
-use std::env;
+use crate::azure::authentication::token_store::TokenStore;
+use crate::azure::authentication::{TokenManager, TokenScope};
+use crate::{load_cert, load_priv_key};
 use azure_core::HttpClient;
+use oauth2::AccessToken;
+use openssl::pkey::{PKey, Private};
+use openssl::x509::X509;
+use reqwest::Client;
 use serenity::prelude::TypeMapKey;
+use std::env;
 use std::sync::Arc;
 
 const AZ_DIRECTORY_ENV: &str = "R6V3_AZ_DIRECTORY";
-const AZ_TOKEN_ENDPOINT_BASE: &str = "https://login.microsoftonline.com";
-const AZ_TOKEN_ENDPOINT_TAIL: &str = "oauth2/v2.0/token";
+const AZ_CLIENT_ENV: &str = "R6V3_AZ_CLIENT";
 
 pub struct AzureClientKey;
 
@@ -16,16 +22,43 @@ impl TypeMapKey for AzureClientKey {
 }
 
 pub struct AzureClient {
-    http_client: Arc<dyn HttpClient>,
     directory: Directory,
+    client: ClientId,
+    token_manager: TokenManager,
+    token_store: TokenStore,
+    http: Client,
 }
 
 impl AzureClient {
-    fn token_endpoint(&self) -> String {
-        format!("{}/{}/{}", AZ_TOKEN_ENDPOINT_BASE, self.directory.id(), AZ_TOKEN_ENDPOINT_TAIL)
+    pub fn new(
+        directory: Directory,
+        client: ClientId,
+        cert: X509,
+        key: PKey<Private>,
+        http: Client,
+    ) -> AzureClient {
+        AzureClient {
+            token_manager: TokenManager::new(directory.clone(), client.clone(), cert, key),
+            token_store: TokenStore::default(),
+            directory,
+            client,
+            http,
+        }
+    }
+
+    async fn token(&self, scope: TokenScope) -> AccessToken {
+        if let Some(token) = self.token_store.token(scope).await {
+            token
+        } else {
+            let tr = self.token_manager.request_new(&self.http, scope).await;
+            let token = tr.token.clone();
+            self.token_store.insert_token(scope, tr).await;
+            token
+        }
     }
 }
 
+#[derive(Debug, Clone)]
 pub struct AzureId {
     id: String,
 }
@@ -36,11 +69,7 @@ impl AzureId {
     }
 
     fn valid_string(s: &str) -> bool {
-        s.chars().all(AzureId::valid_char)
-    }
-
-    fn valid_char(c: char) -> bool {
-        c.is_alphanumeric() || c == '-'
+        s.chars().all(|c| c.is_alphanumeric() || c == '-')
     }
 }
 
@@ -50,25 +79,23 @@ impl From<String> for AzureId {
             panic!("All characters of an azure id must be alphanumeric or '-'.");
         }
 
-        AzureId {
-            id: s,
-        }
+        AzureId { id: s }
     }
 }
 
 pub type Directory = AzureId;
 pub type ClientId = AzureId;
 
-impl AzureClient {
-    pub fn new(directory: Directory) -> AzureClient {
-        let http_client = azure_core::new_http_client();
-
-        AzureClient { http_client, directory }
-    }
+fn directory_id() -> Directory {
+    Directory::from(env::var(AZ_DIRECTORY_ENV).expect("Azure Directory not found in env."))
 }
 
-fn azure_directory() -> AzureId {
-    AzureId {
-        id: env::var(AZ_DIRECTORY_ENV).expect("Azure Directory not found in env."),
-    }
+fn client_id() -> ClientId {
+    ClientId::from(env::var(AZ_CLIENT_ENV).expect("Azure Client not found in env."))
+}
+
+pub fn new_azure_client(http: Client) -> AzureClient {
+    let x509 = load_cert();
+    let secret = load_priv_key();
+    AzureClient::new(directory_id(), client_id(), x509, secret, http)
 }

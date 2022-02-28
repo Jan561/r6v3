@@ -8,14 +8,13 @@ mod permission;
 use command::ping::PING_COMMAND;
 use serenity::async_trait;
 use serenity::client::{Client, EventHandler};
-use serenity::framework::standard::{
-    macros::group,
-    StandardFramework,
-};
+use serenity::framework::standard::{macros::group, StandardFramework};
 use std::collections::HashSet;
 
-use crate::azure::{AzureClient, AzureClientKey};
+use crate::azure::authentication::{load_cert, load_priv_key};
+use crate::azure::{new_azure_client, AzureClient, AzureClientKey};
 use crate::owners::Owners;
+use openssl::pkey::PKey;
 use serenity::http::Http;
 use serenity::model::id::UserId;
 use serenity::model::prelude::CurrentApplicationInfo;
@@ -75,7 +74,7 @@ async fn main() {
 
     data_w(&client, |data| {
         data.insert::<Owners>(owners);
-        data.insert::<AzureClientKey>(AzureClient::new());
+        data.insert::<AzureClientKey>(new_azure_client(reqwest::Client::new()));
     })
     .await;
 
