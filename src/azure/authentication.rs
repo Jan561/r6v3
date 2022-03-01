@@ -20,6 +20,7 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 use std::{env, fs};
 use uuid::Uuid;
+use crate::SimpleResult;
 
 const AZ_TOKEN_ENDPOINT_BASE: &str = "https://login.microsoftonline.com";
 const AZ_TOKEN_ENDPOINT_TAIL: &str = "oauth2/v2.0/token";
@@ -64,28 +65,28 @@ impl TokenManager {
         }
     }
 
-    pub async fn request_new(&self, client: &dyn HttpClient, scope: TokenScope) -> TokenResponse {
-        let req = self.generate_auth_request(scope).into();
+    pub async fn request_new(&self, client: &dyn HttpClient, scope: TokenScope) -> SimpleResult<TokenResponse> {
+        let req = self.generate_auth_request(scope)?.into();
         let resp = client.execute_request2(&req).await.unwrap();
         let body = resp.into_body_string().await;
 
-        serde_json::from_str::<ResponseBody>(&body).unwrap().into()
+        serde_json::from_str::<ResponseBody>(&body).map(Into::into).map_err(Into::into)
     }
 
-    fn generate_auth_request(&self, scope: TokenScope) -> Request<Bytes> {
+    fn generate_auth_request(&self, scope: TokenScope) -> SimpleResult<Request<Bytes>> {
         const CONTENT_TYPE: &'static str = "application/x-www-form-urlencoded";
 
         let url = token_endpoint!(self.directory);
 
-        Request::builder()
+        Ok(Request::builder()
             .method("POST")
             .uri(url)
             .header("Content-Type", CONTENT_TYPE)
-            .body(self.body(scope))
-            .unwrap()
+            .body(self.body(scope)?)
+            .expect("Failed to build auth request."))
     }
 
-    fn body(&self, scope: TokenScope) -> Bytes {
+    fn body(&self, scope: TokenScope) -> SimpleResult<Bytes> {
         const CLIENT_ASSERTION_TYPE: &'static str =
             "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
         const GRANT_TYPE: &'static str = "client_credentials";
@@ -96,26 +97,26 @@ impl TokenManager {
             };
         }
 
-        let token = body_key_value!("client_assertion", self.jwt_token().as_str());
-        let scope = body_key_value!("scope", urlencoding::encode(scope.scope()));
+        let token = body_key_value!("client_assertion", self.jwt_token()?.as_str());
+        let scope = body_key_value!("scope", scope.scope());
         let client = body_key_value!("client_id", self.client.id());
         let assertion_type = body_key_value!(
             "client_assertion_type",
-            urlencoding::encode(CLIENT_ASSERTION_TYPE)
+            CLIENT_ASSERTION_TYPE
         );
         let grant_type = body_key_value!("grant_type", GRANT_TYPE);
 
         let raw = [scope, client, assertion_type, token, grant_type].join("&");
-        urlencoding::encode(&raw).into_owned().into_bytes().into()
+        Ok(urlencoding::encode(&raw).into_owned().into_bytes().into())
     }
 
-    fn jwt_token(&self) -> Token<Header, Claims, Signed> {
+    fn jwt_token(&self) -> SimpleResult<Token<Header, Claims, Signed>> {
         let header = Header::with_fingerprint(&self.fingerprint);
         let claims = self.jwt_claims();
 
         let token = Token::new(header, claims);
 
-        token.sign_with_key(&self.key).unwrap()
+        token.sign_with_key(&self.key).map_err(Into::into)
     }
 
     fn jwt_claims(&self) -> Claims {
@@ -213,12 +214,12 @@ fn cert_path() -> PathBuf {
     exec_dir
 }
 
-fn load_cert_buf() -> Vec<u8> {
-    fs::read(cert_path()).unwrap()
+fn load_cert_buf() -> SimpleResult<Vec<u8>> {
+    fs::read(cert_path()).map_err(Into::into)
 }
 
-pub fn load_cert() -> X509 {
-    X509::from_pem(&load_cert_buf()).unwrap()
+pub fn load_cert() -> SimpleResult<X509> {
+    X509::from_pem(&load_cert_buf()?).map_err(Into::into)
 }
 
 fn cert_fingerprint_sha1(cert: &X509) -> DigestBytes {
@@ -231,10 +232,10 @@ fn priv_key_path() -> PathBuf {
     exec_dir
 }
 
-fn load_priv_key_bytes() -> Vec<u8> {
-    fs::read(priv_key_path()).unwrap()
+fn load_priv_key_bytes() -> SimpleResult<Vec<u8>> {
+    fs::read(priv_key_path()).map_err(Into::into)
 }
 
-pub fn load_priv_key() -> PKey<Private> {
-    PKey::private_key_from_pem(&load_priv_key_bytes()).unwrap()
+pub fn load_priv_key() -> SimpleResult<PKey<Private>> {
+    PKey::private_key_from_pem(&load_priv_key_bytes()?).map_err(Into::into)
 }

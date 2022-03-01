@@ -20,6 +20,7 @@ azure_mgmt_compute="0.1"
 chrono="0.4"
 oauth2="4"
 serde_json="1"
+thiserror="1"
 
 [dependencies.jwt]
 features=["openssl"]

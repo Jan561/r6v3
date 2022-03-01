@@ -12,9 +12,8 @@ use serenity::framework::standard::{macros::group, StandardFramework};
 use std::collections::HashSet;
 
 use crate::azure::authentication::{load_cert, load_priv_key};
-use crate::azure::{new_azure_client, AzureClient, AzureClientKey};
+use crate::azure::{new_azure_client, AzureClientKey};
 use crate::owners::Owners;
-use openssl::pkey::PKey;
 use serenity::http::Http;
 use serenity::model::id::UserId;
 use serenity::model::prelude::CurrentApplicationInfo;
@@ -24,25 +23,23 @@ use tokio::sync::RwLockWriteGuard;
 
 const ENV_DISCORD_TOKEN: &str = "DISCORD_TOKEN";
 
-pub struct SimpleError {
-    pub error_type: ErrorType,
-    pub msg: Option<String>,
+#[derive(thiserror::Error, Debug)]
+pub enum SimpleError {
+    #[error("Discord Client Error")]
+    SerenityError(#[from] SerenityError),
+    #[error("Azure API Error")]
+    AzCoreError(#[from] azure_core::Error),
+    #[error("OpenSSL Error")]
+    OpenSslError(#[from] openssl::error::ErrorStack),
+    #[error("IO Error")]
+    IoError(#[from] std::io::Error),
+    #[error("JWT Error")]
+    JwtError(#[from] jwt::Error),
+    #[error("Serde Error")]
+    SerdeError(#[from] serde_json::Error),
 }
 
 pub type SimpleResult<T> = Result<T, SimpleError>;
-
-pub enum ErrorType {
-    SerenityError(SerenityError),
-}
-
-impl From<SerenityError> for SimpleError {
-    fn from(e: SerenityError) -> Self {
-        SimpleError {
-            error_type: ErrorType::SerenityError(e),
-            msg: None,
-        }
-    }
-}
 
 #[group]
 #[commands(ping)]

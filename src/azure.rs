@@ -2,15 +2,13 @@ pub mod authentication;
 
 use crate::azure::authentication::token_store::TokenStore;
 use crate::azure::authentication::{TokenManager, TokenScope};
-use crate::{load_cert, load_priv_key};
-use azure_core::HttpClient;
+use crate::{load_cert, load_priv_key, SimpleResult};
 use oauth2::AccessToken;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use reqwest::Client;
 use serenity::prelude::TypeMapKey;
 use std::env;
-use std::sync::Arc;
 
 const AZ_DIRECTORY_ENV: &str = "R6V3_AZ_DIRECTORY";
 const AZ_CLIENT_ENV: &str = "R6V3_AZ_CLIENT";
@@ -46,14 +44,14 @@ impl AzureClient {
         }
     }
 
-    async fn token(&self, scope: TokenScope) -> AccessToken {
+    async fn token(&self, scope: TokenScope) -> SimpleResult<AccessToken> {
         if let Some(token) = self.token_store.token(scope).await {
-            token
+            Ok(token)
         } else {
-            let tr = self.token_manager.request_new(&self.http, scope).await;
+            let tr = self.token_manager.request_new(&self.http, scope).await?;
             let token = tr.token.clone();
             self.token_store.insert_token(scope, tr).await;
-            token
+            Ok(token)
         }
     }
 }
@@ -95,7 +93,7 @@ fn client_id() -> ClientId {
 }
 
 pub fn new_azure_client(http: Client) -> AzureClient {
-    let x509 = load_cert();
-    let secret = load_priv_key();
+    let x509 = load_cert().expect("Certificate not found.");
+    let secret = load_priv_key().expect("Private Key not found.");
     AzureClient::new(directory_id(), client_id(), x509, secret, http)
 }
