@@ -1,6 +1,7 @@
 pub mod token_store;
 
 use crate::azure::{ClientId, Directory};
+use crate::SimpleResult;
 use azure_core::auth::TokenResponse;
 use azure_core::HttpClient;
 use bytes::Bytes;
@@ -20,7 +21,6 @@ use std::path::PathBuf;
 use std::time::{Duration, SystemTime};
 use std::{env, fs};
 use uuid::Uuid;
-use crate::SimpleResult;
 
 const AZ_TOKEN_ENDPOINT_BASE: &str = "https://login.microsoftonline.com";
 const AZ_TOKEN_ENDPOINT_TAIL: &str = "oauth2/v2.0/token";
@@ -65,12 +65,18 @@ impl TokenManager {
         }
     }
 
-    pub async fn request_new(&self, client: &dyn HttpClient, scope: TokenScope) -> SimpleResult<TokenResponse> {
+    pub async fn request_new(
+        &self,
+        client: &dyn HttpClient,
+        scope: TokenScope,
+    ) -> SimpleResult<TokenResponse> {
         let req = self.generate_auth_request(scope)?.into();
         let resp = client.execute_request2(&req).await.unwrap();
         let body = resp.into_body_string().await;
 
-        serde_json::from_str::<ResponseBody>(&body).map(Into::into).map_err(Into::into)
+        serde_json::from_str::<ResponseBody>(&body)
+            .map(Into::into)
+            .map_err(Into::into)
     }
 
     fn generate_auth_request(&self, scope: TokenScope) -> SimpleResult<Request<Bytes>> {
@@ -93,21 +99,20 @@ impl TokenManager {
 
         macro_rules! body_key_value {
             ($key:expr, $value:expr) => {
-                format!("{}={}", $key, $value)
+                format!("{}={}", $key, urlencoding::encode($value))
             };
         }
 
         let token = body_key_value!("client_assertion", self.jwt_token()?.as_str());
         let scope = body_key_value!("scope", scope.scope());
         let client = body_key_value!("client_id", self.client.id());
-        let assertion_type = body_key_value!(
-            "client_assertion_type",
-            CLIENT_ASSERTION_TYPE
-        );
+        let assertion_type = body_key_value!("client_assertion_type", CLIENT_ASSERTION_TYPE);
         let grant_type = body_key_value!("grant_type", GRANT_TYPE);
 
-        let raw = [scope, client, assertion_type, token, grant_type].join("&");
-        Ok(urlencoding::encode(&raw).into_owned().into_bytes().into())
+        Ok([scope, client, assertion_type, token, grant_type]
+            .join("&")
+            .into_bytes()
+            .into())
     }
 
     fn jwt_token(&self) -> SimpleResult<Token<Header, Claims, Signed>> {

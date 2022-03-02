@@ -1,23 +1,28 @@
 mod azure;
 mod command;
+mod config;
 mod handler;
 mod hook;
 mod owners;
 mod permission;
 
-use command::ping::PING_COMMAND;
+use crate::azure::authentication::{load_cert, load_priv_key};
+use crate::azure::{new_azure_client, AzureClientKey};
+use crate::command::ping::PING_COMMAND;
+use crate::command::start::START_COMMAND;
+use crate::command::stop::STOP_COMMAND;
+use crate::config::{Config, ConfigKey};
+use crate::hook::{after_hook, before_hook};
+use crate::owners::Owners;
+use azure_core::HttpError;
 use serenity::async_trait;
 use serenity::client::{Client, EventHandler};
 use serenity::framework::standard::{macros::group, StandardFramework};
-use std::collections::HashSet;
-
-use crate::azure::authentication::{load_cert, load_priv_key};
-use crate::azure::{new_azure_client, AzureClientKey};
-use crate::owners::Owners;
 use serenity::http::Http;
 use serenity::model::id::UserId;
 use serenity::model::prelude::CurrentApplicationInfo;
 use serenity::prelude::{SerenityError, TypeMap};
+use std::collections::HashSet;
 use std::env;
 use tokio::sync::RwLockWriteGuard;
 
@@ -39,10 +44,16 @@ pub enum SimpleError {
     SerdeError(#[from] serde_json::Error),
 }
 
+impl From<HttpError> for SimpleError {
+    fn from(err: HttpError) -> SimpleError {
+        SimpleError::AzCoreError(azure_core::Error::Http(err))
+    }
+}
+
 pub type SimpleResult<T> = Result<T, SimpleError>;
 
 #[group]
-#[commands(ping)]
+#[commands(ping, start, stop)]
 #[only_in(guilds)]
 struct General;
 
@@ -56,10 +67,13 @@ async fn main() {
     let http = http();
     let app_info = app_info(&http).await;
     let owners = owners(app_info);
+    let config = Config::from_env();
 
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("~")) // set the bot's prefix to "~"
-        .group(&GENERAL_GROUP);
+        .group(&GENERAL_GROUP)
+        .before(before_hook)
+        .after(after_hook);
 
     // Login with a bot token from the environment
     let token = discord_token();
@@ -72,6 +86,7 @@ async fn main() {
     data_w(&client, |data| {
         data.insert::<Owners>(owners);
         data.insert::<AzureClientKey>(new_azure_client(reqwest::Client::new()));
+        data.insert::<ConfigKey>(config);
     })
     .await;
 
