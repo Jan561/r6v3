@@ -1,4 +1,4 @@
-use crate::azure::management::VmClient;
+use crate::azure::management::vm::VmClient;
 use crate::permission::HasPermission;
 use crate::{AzureClientKey, ConfigKey, Owners};
 use async_trait::async_trait;

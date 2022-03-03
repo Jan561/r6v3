@@ -1,10 +1,12 @@
 pub mod authentication;
+#[macro_use]
 pub mod management;
 
 use crate::azure::authentication::token_store::TokenStore;
 use crate::azure::authentication::{TokenManager, TokenScope};
 use crate::{load_cert, load_priv_key, SimpleError, SimpleResult};
 use azure_core::{HttpClient, HttpError, Request, Response};
+use log::info;
 use oauth2::AccessToken;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
@@ -51,6 +53,11 @@ impl AzureClient {
         if let Some(token) = self.token_store.token(scope).await {
             Ok(token)
         } else {
+            info!(
+                "Requesting new Azure API Token for scope {}.",
+                scope.scope()
+            );
+
             let tr = self.token_manager.request_new(&self.http, scope).await?;
             let token = tr.token.clone();
             self.token_store.insert_token(scope, tr).await;

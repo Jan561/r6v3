@@ -12,11 +12,11 @@ use crate::command::ping::PING_COMMAND;
 use crate::command::start::START_COMMAND;
 use crate::command::stop::STOP_COMMAND;
 use crate::config::{Config, ConfigKey};
+use crate::handler::Handler;
 use crate::hook::{after_hook, before_hook};
 use crate::owners::Owners;
 use azure_core::HttpError;
-use serenity::async_trait;
-use serenity::client::{Client, EventHandler};
+use serenity::client::Client;
 use serenity::framework::standard::{macros::group, StandardFramework};
 use serenity::http::Http;
 use serenity::model::id::UserId;
@@ -42,6 +42,8 @@ pub enum SimpleError {
     JwtError(#[from] jwt::Error),
     #[error("Serde Error")]
     SerdeError(#[from] serde_json::Error),
+    #[error("Timeout")]
+    Timeout,
 }
 
 impl From<HttpError> for SimpleError {
@@ -57,13 +59,10 @@ pub type SimpleResult<T> = Result<T, SimpleError>;
 #[only_in(guilds)]
 struct General;
 
-struct Handler;
-
-#[async_trait]
-impl EventHandler for Handler {}
-
 #[tokio::main]
 async fn main() {
+    env_logger::init();
+
     let http = http();
     let app_info = app_info(&http).await;
     let owners = owners(app_info);

@@ -1,92 +1,10 @@
+pub mod vm;
+pub mod vm_rum_cmd;
+
 use crate::azure::authentication::TokenScope;
-use crate::azure::{AzureClient, AzureName, SubscriptionId};
+use crate::azure::AzureClient;
 use crate::SimpleResult;
-use async_trait::async_trait;
 use azure_core::{Body, Response};
-use http::Request;
-
-pub const API_VERSION: &str = "2021-11-01";
-
-macro_rules! api {
-    () => {
-        "https://management.azure.com"
-    };
-}
-
-macro_rules! uri {
-    ($($part:expr),*) => {
-        [$(&*$part),*].join("/") + "?api-version=" + API_VERSION
-    }
-}
-
-macro_rules! base {
-    ($sub:expr, $rg:expr, $($part:expr),*) => {
-        uri![api!(), "subscriptions", $sub, "resourceGroups", $rg, $($part),*]
-    }
-}
-
-macro_rules! compute {
-    ($sub:expr, $rg:expr, $($part:expr),*) => {
-        base!($sub, $rg, "providers/Microsoft.Compute", $($part),*)
-    }
-}
-
-macro_rules! vm {
-    ($sub:expr, $rg:expr, $vm:expr, $($part:expr),*) => {
-        compute!($sub, $rg, "virtualMachines", $vm, $($part),*)
-    }
-}
-
-#[async_trait]
-pub trait VmClient {
-    async fn start(
-        &self,
-        subscription: &SubscriptionId,
-        rg: &AzureName,
-        name: &AzureName,
-    ) -> SimpleResult<()>;
-    async fn deallocate(
-        &self,
-        subscription: &SubscriptionId,
-        rg: &AzureName,
-        name: &AzureName,
-    ) -> SimpleResult<()>;
-}
-
-#[async_trait]
-impl VmClient for AzureClient {
-    async fn start(
-        &self,
-        subscription: &SubscriptionId,
-        rg: &AzureName,
-        name: &AzureName,
-    ) -> SimpleResult<()> {
-        let url = vm!(subscription, rg, name, "start");
-
-        let request = Request::post(url)
-            .body(Default::default())
-            .expect("Failed building http request.")
-            .into();
-
-        send_request(self, request).await.map(|_| ())
-    }
-
-    async fn deallocate(
-        &self,
-        subscription: &SubscriptionId,
-        rg: &AzureName,
-        name: &AzureName,
-    ) -> SimpleResult<()> {
-        let url = vm!(subscription, rg, name, "deallocate");
-
-        let request = Request::post(url)
-            .body(Default::default())
-            .expect("Failed building http request.")
-            .into();
-
-        send_request(self, request).await.map(|_| ())
-    }
-}
 
 async fn send_request(
     client: &AzureClient,
@@ -111,3 +29,55 @@ fn content_length(request: &azure_core::Request) -> Option<usize> {
         None
     }
 }
+
+macro_rules! api_ {
+    () => {
+        "https://management.azure.com"
+    };
+}
+
+use api_ as api;
+
+macro_rules! uri_ {
+    ($($part:expr),*) => {
+        [$(&*$part),*].join("/")
+    }
+}
+
+use uri_ as uri;
+
+macro_rules! base_ {
+    ($sub:expr, $rg:expr, $($part:expr),*) => {
+        $crate::azure::management::uri![
+            $crate::azure::management::api!(),
+            "subscriptions",
+            $sub,
+            "resourceGroups",
+            $rg,
+            $($part),*
+        ]
+    }
+}
+
+use base_ as base;
+
+macro_rules! compute_ {
+    ($sub:expr, $rg:expr, $($part:expr),*) => {
+        $crate::azure::management::base!(
+            $sub,
+            $rg,
+            "providers/Microsoft.Compute",
+            $($part),*
+        )
+    }
+}
+
+use compute_ as compute;
+
+macro_rules! api_version_ {
+    ($version:expr) => {
+        "?api-version=".to_owned() + $version
+    };
+}
+
+use api_version_ as api_version;

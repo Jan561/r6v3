@@ -1,5 +1,5 @@
 [package]
-name = "untitled"
+name = "r6v3"
 version = "0.1.0"
 edition = "2021"
 
@@ -21,6 +21,8 @@ chrono="0.4"
 oauth2="4"
 serde_json="1"
 thiserror="1"
+log="0.4"
+env_logger="0.9"
 
 [dependencies.jwt]
 features=["openssl"]
@@ -31,5 +33,5 @@ features=["v4"]
 version="0.8"
 
 [dependencies.tokio]
-version="1"
 features = ["full"]
+version="1"
