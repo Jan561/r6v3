@@ -1,5 +1,5 @@
 use crate::azure::management::vm::VmClient;
-use crate::azure::management::vm_rum_cmd::{ShellCommand, VmRunCmdClient};
+use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
 use crate::permission::HasPermission;
 use crate::{AzureClientKey, ConfigKey, Owners, SimpleError};
 use async_trait::async_trait;

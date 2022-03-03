@@ -1,5 +1,5 @@
 pub mod vm;
-pub mod vm_rum_cmd;
+pub mod vm_run_cmd;
 
 use crate::azure::authentication::TokenScope;
 use crate::azure::AzureClient;
