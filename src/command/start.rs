@@ -9,11 +9,11 @@ use serenity::framework::standard::macros::command;
 use serenity::framework::standard::CommandResult;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
+use std::fs;
 use std::thread::sleep;
 use std::time::{Duration, SystemTime};
 
 const TIMEOUT: Duration = Duration::from_secs(120);
-const MC_START_CMD: &str = "cd /home/mc/new_server && sudo -u mc screen -AmdS mcs ./start.sh";
 
 #[command]
 async fn start(ctx: &Context, msg: &Message) -> CommandResult {
@@ -21,6 +21,7 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     let config = data.get::<ConfigKey>().unwrap();
     let client = data.get::<AzureClientKey>().unwrap();
 
+    // Booting the server
     client
         .start(&config.subscription, &config.rg, &config.vm)
         .await?;
@@ -31,10 +32,11 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
         warn!("Error sending progress message, but continuing.: {}", why);
     }
 
-    let now = SystemTime::now();
+    // Waiting for server to be ready, or timeout after 120 seconds
+    let loop_start = SystemTime::now();
 
     loop {
-        if SystemTime::now().duration_since(now).unwrap() > TIMEOUT {
+        if SystemTime::now().duration_since(loop_start).unwrap() > TIMEOUT {
             return Err(SimpleError::Timeout.into());
         }
 
@@ -52,22 +54,21 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
         sleep(Duration::from_secs(10));
     }
 
+    let file = fs::read(&config.mc_start_script)?;
+    let script = ShellCommand {
+        script: [std::str::from_utf8(&file).unwrap()],
+    };
+
+    // Fire start command for game server
+    client
+        .run(&config.subscription, &config.rg, &config.vm, script)
+        .await?;
+
     if let Ok(msg) = &mut bot_msg {
         if let Err(why) = msg.edit(ctx, |m| m.content("Started the server.")).await {
             warn!("Error updating progress message.: {}", why);
         }
     }
-
-    client
-        .run(
-            &config.subscription,
-            &config.rg,
-            &config.vm,
-            ShellCommand {
-                script: vec![MC_START_CMD.to_owned()],
-            },
-        )
-        .await?;
 
     Ok(())
 }

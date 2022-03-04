@@ -11,14 +11,14 @@ use serenity::model::channel::Message;
 #[hook]
 pub async fn before_hook(ctx: &Context, msg: &Message, cmd_name: &str) -> bool {
     info!(
-        "Received command {} from user {}#{}.",
-        cmd_name, msg.author.name, msg.author.discriminator
+        "Received command {} from user {}#{} ({}).",
+        cmd_name, msg.author.name, msg.author.discriminator, msg.author.id
     );
 
     if !has_permission(ctx, msg, cmd_name).await {
         info!(
-            "Unauthorized command usage: {} from {}#{}.",
-            cmd_name, msg.author.name, msg.author.discriminator
+            "Unauthorized command usage: {} from {}#{} ({}).",
+            cmd_name, msg.author.name, msg.author.discriminator, msg.author.id
         );
 
         let res = msg.reply(ctx, "Not authorized.").await;

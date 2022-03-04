@@ -4,7 +4,7 @@ use crate::azure::{AzureClient, AzureName, SubscriptionId};
 use crate::SimpleResult;
 use async_trait::async_trait;
 use http::Request;
-use serde::Serialize;
+use serde_json::json;
 
 const API_VERSION: &str = "2021-07-01";
 
@@ -16,55 +16,84 @@ macro_rules! run_command {
 
 #[async_trait]
 pub trait VmRunCmdClient {
-    async fn run(
+    async fn run<'a, 'u, 'v, P, S, U, V>(
         &self,
         subscription: &SubscriptionId,
         rg: &AzureName,
         vm: &AzureName,
-        cmd: impl Into<Command> + Send + 'static,
-    ) -> SimpleResult<()>;
+        cmd: impl Into<Command<P, S>> + Send + 'a,
+    ) -> SimpleResult<()>
+    where
+        P: IntoIterator<Item = &'u U> + Send,
+        U: AsRef<str> + 'u + ?Sized,
+        S: IntoIterator<Item = &'v V> + Send,
+        V: AsRef<str> + 'v + ?Sized,
+        'u: 'a,
+        'v: 'a;
 }
 
 #[async_trait]
 impl VmRunCmdClient for AzureClient {
-    async fn run(
+    async fn run<'a, 'u, 'v, P, S, U, V>(
         &self,
         subscription: &SubscriptionId,
         rg: &AzureName,
         vm: &AzureName,
-        cmd: impl Into<Command> + Send + 'static,
-    ) -> SimpleResult<()> {
+        cmd: impl Into<Command<P, S>> + Send + 'a,
+    ) -> SimpleResult<()>
+    where
+        P: IntoIterator<Item = &'u U> + Send,
+        U: AsRef<str> + 'u + ?Sized,
+        S: IntoIterator<Item = &'v V> + Send,
+        V: AsRef<str> + 'v + ?Sized,
+        'u: 'a,
+        'v: 'a,
+    {
         let url: String = run_command!(subscription, rg, vm) + &api_version!(API_VERSION);
+        let cmd = cmd.into();
+        let parameters = cmd
+            .parameters
+            .into_iter()
+            .map(|p| p.as_ref())
+            .collect::<Vec<&str>>();
+        let script = cmd
+            .script
+            .into_iter()
+            .map(|s| s.as_ref())
+            .collect::<Vec<&str>>();
+
+        let body = json!({
+            "commandId": cmd.command_id,
+            "parameters": parameters,
+            "script": script
+        });
 
         let request = Request::post(url)
             .header("Content-Type", "application/json")
-            .body(serde_json::to_string(&cmd.into())?.into_bytes().into())
+            .body(serde_json::to_string(&body)?.into_bytes().into())
             .expect("Error creating request.");
 
         send_request(self, request.into()).await.map(|_| ())
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
-pub struct Command {
-    #[serde(rename = "commandId")]
-    pub command_id: String,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub parameters: Vec<String>,
-    #[serde(skip_serializing_if = "Vec::is_empty")]
-    pub script: Vec<String>,
+#[derive(Debug, Clone)]
+pub struct Command<P, S> {
+    pub command_id: &'static str,
+    pub parameters: P,
+    pub script: S,
 }
 
 #[derive(Debug, Clone)]
-pub struct ShellCommand {
-    pub script: Vec<String>,
+pub struct ShellCommand<S> {
+    pub script: S,
 }
 
-impl From<ShellCommand> for Command {
-    fn from(cmd: ShellCommand) -> Command {
+impl<S> From<ShellCommand<S>> for Command<[&'static str; 0], S> {
+    fn from(cmd: ShellCommand<S>) -> Command<[&'static str; 0], S> {
         Command {
-            command_id: "RunShellScript".to_owned(),
-            parameters: vec![],
+            command_id: "RunShellScript",
+            parameters: [],
             script: cmd.script,
         }
     }
