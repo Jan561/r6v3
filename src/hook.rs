@@ -2,7 +2,7 @@ use crate::command::ping::PingPermission;
 use crate::command::start::StartPermission;
 use crate::command::stop::StopPermission;
 use crate::permission::{DefaultPermission, HasPermission};
-use log::{error, info};
+use log::{error, info, warn};
 use serenity::client::Context;
 use serenity::framework::standard::macros::hook;
 use serenity::framework::standard::CommandError;
@@ -23,7 +23,7 @@ pub async fn before_hook(ctx: &Context, msg: &Message, cmd_name: &str) -> bool {
 
         let res = msg.reply(ctx, "Not authorized.").await;
         if let Err(why) = res {
-            error!("An error occurred replying to the author.: {:?}", why);
+            warn!("An error occurred replying to the author.: {:?}", why);
         }
 
         return false;
@@ -40,18 +40,18 @@ pub async fn after_hook(
     res: Result<(), CommandError>,
 ) {
     if let Err(why) = res {
-        error!("{:?}", why);
+        error!("Command execution unsuccessful: {:?}", why);
         let res = msg
-            .reply(ctx, format!("An error occurred on our end: {}", why))
+            .reply(ctx, format!("An internal error occurred: {}", why))
             .await;
 
         if let Err(why) = res {
-            error!("An error occurred replying to the author.: {:?}", why);
+            warn!("An error occurred replying to the author.: {:?}", why);
         }
     } else {
         info!(
-            "Successfully processed {} of user {}#{}.",
-            cmd_name, msg.author.name, msg.author.discriminator
+            "Successfully processed command {} from user {}#{} ({}).",
+            cmd_name, msg.author.name, msg.author.discriminator, msg.author.id
         );
     }
 }

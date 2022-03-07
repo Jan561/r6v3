@@ -3,8 +3,10 @@ use crate::azure::management::{api_version, send_request};
 use crate::azure::{AzureClient, AzureName, SubscriptionId};
 use crate::SimpleResult;
 use async_trait::async_trait;
-use http::Request;
-use serde_json::json;
+use http::{Request, StatusCode, Uri};
+use serde_json::{json, Value};
+use std::time::Duration;
+use tokio::time::sleep;
 
 const API_VERSION: &str = "2021-07-01";
 
@@ -22,7 +24,7 @@ pub trait VmRunCmdClient {
         rg: &AzureName,
         vm: &AzureName,
         cmd: impl Into<Command<P, S>> + Send + 'a,
-    ) -> SimpleResult<()>
+    ) -> SimpleResult<CommandTask<'_>>
     where
         P: IntoIterator<Item = &'u U> + Send,
         U: AsRef<str> + 'u + ?Sized,
@@ -40,7 +42,7 @@ impl VmRunCmdClient for AzureClient {
         rg: &AzureName,
         vm: &AzureName,
         cmd: impl Into<Command<P, S>> + Send + 'a,
-    ) -> SimpleResult<()>
+    ) -> SimpleResult<CommandTask<'_>>
     where
         P: IntoIterator<Item = &'u U> + Send,
         U: AsRef<str> + 'u + ?Sized,
@@ -70,10 +72,30 @@ impl VmRunCmdClient for AzureClient {
 
         let request = Request::post(url)
             .header("Content-Type", "application/json")
-            .body(serde_json::to_string(&body)?.into_bytes().into())
+            .body(body.to_string().into_bytes().into())
             .expect("Error creating request.");
 
-        send_request(self, request.into()).await.map(|_| ())
+        match send_request(self, request.into()).await {
+            Ok(r) => {
+                if r.status() == StatusCode::OK {
+                    Ok(CommandTask {
+                        resp_type: ResponseType::Status200(r.into_body_string().await),
+                        client: self,
+                    })
+                } else if r.status() == StatusCode::ACCEPTED {
+                    let location = r.headers()["location"].to_str()?;
+                    Ok(CommandTask {
+                        resp_type: ResponseType::Status202(
+                            location.try_into().expect("Not a valid uri."),
+                        ),
+                        client: self,
+                    })
+                } else {
+                    unimplemented!()
+                }
+            }
+            Err(e) => Err(e),
+        }
     }
 }
 
@@ -97,4 +119,43 @@ impl<S> From<ShellCommand<S>> for Command<[&'static str; 0], S> {
             script: cmd.script,
         }
     }
+}
+
+pub struct CommandTask<'a> {
+    resp_type: ResponseType,
+    client: &'a AzureClient,
+}
+
+impl<'a> CommandTask<'a> {
+    const POLL_INTERVAL: Duration = Duration::from_secs(3);
+
+    pub async fn wait(self) -> SimpleResult<String> {
+        match self.resp_type {
+            ResponseType::Status200(ret) => Ok(ret),
+            ResponseType::Status202(uri) => loop {
+                let request = Request::get(&uri)
+                    .body(Default::default())
+                    .expect("Error creating request.")
+                    .into();
+
+                let response = send_request(self.client, request).await?;
+                let body = response.into_body_string().await;
+
+                if !body.is_empty() {
+                    let value: Value = serde_json::from_str(&body)?;
+                    let msg = value["value"][0]["message"]
+                        .as_str()
+                        .expect("Error converting message to string.");
+                    return Ok(msg.to_owned());
+                }
+
+                sleep(CommandTask::POLL_INTERVAL).await;
+            },
+        }
+    }
+}
+
+enum ResponseType {
+    Status200(String),
+    Status202(Uri),
 }

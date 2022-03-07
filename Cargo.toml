@@ -16,7 +16,6 @@ openssl="0.10"
 base64="0.13"
 urlencoding="2"
 bytes="1"
-azure_mgmt_compute="0.1"
 chrono="0.4"
 oauth2="4"
 serde_json="1"
@@ -35,3 +34,7 @@ version="0.8"
 [dependencies.tokio]
 features = ["full"]
 version="1"
+
+[dependencies.rcon]
+features=["rt-tokio"]
+version="0.6"

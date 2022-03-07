@@ -3,6 +3,7 @@ mod command;
 mod config;
 mod handler;
 mod hook;
+// mod minecraft;
 mod owners;
 mod permission;
 
@@ -14,8 +15,11 @@ use crate::command::stop::STOP_COMMAND;
 use crate::config::{Config, ConfigKey};
 use crate::handler::Handler;
 use crate::hook::{after_hook, before_hook};
+// use crate::minecraft::{new_minecraft_client, MinecraftKey};
 use crate::owners::Owners;
 use azure_core::HttpError;
+use http::header::ToStrError;
+use log::error;
 use serenity::client::Client;
 use serenity::framework::standard::{macros::group, StandardFramework};
 use serenity::http::Http;
@@ -30,20 +34,26 @@ const ENV_DISCORD_TOKEN: &str = "DISCORD_TOKEN";
 
 #[derive(thiserror::Error, Debug)]
 pub enum SimpleError {
-    #[error("Discord Client Error")]
+    #[error("Discord Client Error: {}", _0)]
     SerenityError(#[from] SerenityError),
-    #[error("Azure API Error")]
+    #[error("Azure API Error: {}", _0)]
     AzCoreError(#[from] azure_core::Error),
-    #[error("OpenSSL Error")]
+    #[error("OpenSSL Error: {}", _0)]
     OpenSslError(#[from] openssl::error::ErrorStack),
-    #[error("IO Error")]
+    #[error("IO Error: {}", _0)]
     IoError(#[from] std::io::Error),
-    #[error("JWT Error")]
+    #[error("JWT Error: {}", _0)]
     JwtError(#[from] jwt::Error),
-    #[error("Serde Error")]
+    #[error("Serde Error: {}", _0)]
     SerdeError(#[from] serde_json::Error),
     #[error("Timeout")]
     Timeout,
+    // #[error("RCON Error: {}", _0)]
+    // RconError(#[from] rcon::Error),
+    #[error("TCP connection not established")]
+    NotConnected,
+    #[error("Error parsing header")]
+    ToStrError(#[from] ToStrError),
 }
 
 impl From<HttpError> for SimpleError {
@@ -85,13 +95,17 @@ async fn main() {
     data_w(&client, |data| {
         data.insert::<Owners>(owners);
         data.insert::<AzureClientKey>(new_azure_client(reqwest::Client::new()));
+        // data.insert::<MinecraftKey>(new_minecraft_client(&config));
         data.insert::<ConfigKey>(config);
     })
     .await;
 
     // start listening for events by starting a single shard
     if let Err(why) = client.start().await {
-        println!("An error occurred while running the client: {:?}", why);
+        error!(
+            "FATAL: An error occurred while running the client: {:?}",
+            why
+        );
     }
 }
 

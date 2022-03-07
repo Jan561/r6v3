@@ -10,8 +10,8 @@ use serenity::framework::standard::CommandResult;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use std::fs;
-use std::thread::sleep;
 use std::time::{Duration, SystemTime};
+use tokio::time::sleep;
 
 const TIMEOUT: Duration = Duration::from_secs(120);
 
@@ -45,13 +45,18 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
             .await?;
         if instance
             .vm_agent
-            .map(|agent| agent.statuses.get(0).unwrap().display_status == "Ready")
+            .map(|agent| {
+                agent
+                    .statuses
+                    .get(0)
+                    .map_or(false, |s| s.display_status == "Ready")
+            })
             .unwrap_or(false)
         {
             break;
         }
 
-        sleep(Duration::from_secs(10));
+        sleep(Duration::from_secs(10)).await;
     }
 
     let file = fs::read(&config.mc_start_script)?;
@@ -65,7 +70,12 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
         .await?;
 
     if let Ok(msg) = &mut bot_msg {
-        if let Err(why) = msg.edit(ctx, |m| m.content("Started the server.")).await {
+        if let Err(why) = msg
+            .edit(ctx, |m| {
+                m.content("Booted the server and initiated game server start.")
+            })
+            .await
+        {
             warn!("Error updating progress message.: {}", why);
         }
     }

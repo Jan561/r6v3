@@ -80,7 +80,7 @@ impl TokenManager {
     }
 
     fn generate_auth_request(&self, scope: TokenScope) -> SimpleResult<Request<Bytes>> {
-        const CONTENT_TYPE: &'static str = "application/x-www-form-urlencoded";
+        const CONTENT_TYPE: &str = "application/x-www-form-urlencoded";
 
         let url = token_endpoint!(self.directory);
 
@@ -93,9 +93,9 @@ impl TokenManager {
     }
 
     fn body(&self, scope: TokenScope) -> SimpleResult<Bytes> {
-        const CLIENT_ASSERTION_TYPE: &'static str =
+        const CLIENT_ASSERTION_TYPE: &str =
             "urn:ietf:params:oauth:client-assertion-type:jwt-bearer";
-        const GRANT_TYPE: &'static str = "client_credentials";
+        const GRANT_TYPE: &str = "client_credentials";
 
         macro_rules! body_key_value {
             ($key:expr, $value:expr) => {
@@ -165,7 +165,7 @@ impl Header {
     fn with_fingerprint(digest: &[u8]) -> Header {
         Header {
             alg: AlgorithmType::Rs256,
-            typ: Type::JWT,
+            typ: Type::Jwt,
             x5t: base64::encode(digest),
         }
     }
@@ -179,7 +179,8 @@ impl JoseHeader for Header {
 
 #[derive(Serialize)]
 enum Type {
-    JWT,
+    #[serde(rename = "JWT")]
+    Jwt,
 }
 
 #[derive(Deserialize)]
