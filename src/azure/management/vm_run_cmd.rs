@@ -5,6 +5,7 @@ use crate::SimpleResult;
 use async_trait::async_trait;
 use http::{Request, StatusCode, Uri};
 use serde_json::{json, Value};
+use std::marker::PhantomData;
 use std::time::Duration;
 use tokio::time::sleep;
 
@@ -18,14 +19,15 @@ macro_rules! run_command {
 
 #[async_trait]
 pub trait VmRunCmdClient {
-    async fn run<'a, 'u, 'v, P, S, U, V>(
+    async fn run<'a, 'u, 'v, C, P, S, U, V>(
         &self,
         subscription: &SubscriptionId,
         rg: &AzureName,
         vm: &AzureName,
-        cmd: impl Into<Command<P, S>> + Send + 'a,
-    ) -> SimpleResult<CommandTask<'_>>
+        cmd: C,
+    ) -> SimpleResult<CommandTask<'_, C>>
     where
+        C: Into<BaseCommand<P, S>> + Command + Send + 'a,
         P: IntoIterator<Item = &'u U> + Send,
         U: AsRef<str> + 'u + ?Sized,
         S: IntoIterator<Item = &'v V> + Send,
@@ -36,14 +38,15 @@ pub trait VmRunCmdClient {
 
 #[async_trait]
 impl VmRunCmdClient for AzureClient {
-    async fn run<'a, 'u, 'v, P, S, U, V>(
+    async fn run<'a, 'u, 'v, C, P, S, U, V>(
         &self,
         subscription: &SubscriptionId,
         rg: &AzureName,
         vm: &AzureName,
-        cmd: impl Into<Command<P, S>> + Send + 'a,
-    ) -> SimpleResult<CommandTask<'_>>
+        cmd: C,
+    ) -> SimpleResult<CommandTask<'_, C>>
     where
+        C: Into<BaseCommand<P, S>> + Command + Send + 'a,
         P: IntoIterator<Item = &'u U> + Send,
         U: AsRef<str> + 'u + ?Sized,
         S: IntoIterator<Item = &'v V> + Send,
@@ -81,6 +84,7 @@ impl VmRunCmdClient for AzureClient {
                     Ok(CommandTask {
                         resp_type: ResponseType::Status200(r.into_body_string().await),
                         client: self,
+                        _c: PhantomData,
                     })
                 } else if r.status() == StatusCode::ACCEPTED {
                     let location = r.headers()["location"].to_str()?;
@@ -89,9 +93,10 @@ impl VmRunCmdClient for AzureClient {
                             location.try_into().expect("Not a valid uri."),
                         ),
                         client: self,
+                        _c: PhantomData,
                     })
                 } else {
-                    unimplemented!()
+                    unimplemented!("Received unexpected status code: {}.", r.status())
                 }
             }
             Err(e) => Err(e),
@@ -99,8 +104,14 @@ impl VmRunCmdClient for AzureClient {
     }
 }
 
+pub trait Command {
+    type Output;
+
+    fn parse_response(body: impl AsRef<str>) -> SimpleResult<Self::Output>;
+}
+
 #[derive(Debug, Clone)]
-pub struct Command<P, S> {
+pub struct BaseCommand<P, S> {
     pub command_id: &'static str,
     pub parameters: P,
     pub script: S,
@@ -111,9 +122,9 @@ pub struct ShellCommand<S> {
     pub script: S,
 }
 
-impl<S> From<ShellCommand<S>> for Command<[&'static str; 0], S> {
-    fn from(cmd: ShellCommand<S>) -> Command<[&'static str; 0], S> {
-        Command {
+impl<S> From<ShellCommand<S>> for BaseCommand<[&'static str; 0], S> {
+    fn from(cmd: ShellCommand<S>) -> BaseCommand<[&'static str; 0], S> {
+        BaseCommand {
             command_id: "RunShellScript",
             parameters: [],
             script: cmd.script,
@@ -121,17 +132,33 @@ impl<S> From<ShellCommand<S>> for Command<[&'static str; 0], S> {
     }
 }
 
-pub struct CommandTask<'a> {
-    resp_type: ResponseType,
-    client: &'a AzureClient,
+impl<S> Command for ShellCommand<S> {
+    type Output = String;
+
+    fn parse_response(body: impl AsRef<str>) -> SimpleResult<String> {
+        let value: Value = serde_json::from_str(body.as_ref())?;
+        let msg = value["value"][0]["message"]
+            .as_str()
+            .expect("Couldn't parse response.");
+        Ok(msg.to_owned())
+    }
 }
 
-impl<'a> CommandTask<'a> {
+pub struct CommandTask<'a, C> {
+    resp_type: ResponseType,
+    client: &'a AzureClient,
+    _c: PhantomData<C>,
+}
+
+impl<'a, C> CommandTask<'a, C>
+where
+    C: Command,
+{
     const POLL_INTERVAL: Duration = Duration::from_secs(3);
 
-    pub async fn wait(self) -> SimpleResult<String> {
-        match self.resp_type {
-            ResponseType::Status200(ret) => Ok(ret),
+    pub async fn wait(self) -> SimpleResult<C::Output> {
+        let response = match self.resp_type {
+            ResponseType::Status200(ret) => ret,
             ResponseType::Status202(uri) => loop {
                 let request = Request::get(&uri)
                     .body(Default::default())
@@ -139,19 +166,20 @@ impl<'a> CommandTask<'a> {
                     .into();
 
                 let response = send_request(self.client, request).await?;
-                let body = response.into_body_string().await;
 
-                if !body.is_empty() {
-                    let value: Value = serde_json::from_str(&body)?;
-                    let msg = value["value"][0]["message"]
-                        .as_str()
-                        .expect("Error converting message to string.");
-                    return Ok(msg.to_owned());
+                if response.status() == StatusCode::OK {
+                    break response.into_body_string().await;
                 }
 
-                sleep(CommandTask::POLL_INTERVAL).await;
+                if response.status() != StatusCode::ACCEPTED {
+                    unimplemented!("Received unexpected status code: {}.", response.status());
+                }
+
+                sleep(Self::POLL_INTERVAL).await;
             },
-        }
+        };
+
+        C::parse_response(response)
     }
 }
 

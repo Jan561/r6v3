@@ -19,7 +19,7 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
     let client = data.get::<AzureClientKey>().unwrap();
 
     // re_try!(mc_rcon, save_all)?;
-    //re_try!(mc_rcon, stop)?;
+    // re_try!(mc_rcon, stop)?;
 
     // mc_rcon.disconnect().await;
 
