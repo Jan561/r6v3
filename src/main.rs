@@ -3,7 +3,6 @@ mod command;
 mod config;
 mod handler;
 mod hook;
-// mod minecraft;
 mod owners;
 mod permission;
 
@@ -48,8 +47,6 @@ pub enum SimpleError {
     SerdeError(#[from] serde_json::Error),
     #[error("Timeout")]
     Timeout,
-    // #[error("RCON Error: {}", _0)]
-    // RconError(#[from] rcon::Error),
     #[error("TCP connection not established")]
     NotConnected,
     #[error("Error parsing header")]
@@ -95,7 +92,6 @@ async fn main() {
     data_w(&client, |data| {
         data.insert::<Owners>(owners);
         data.insert::<AzureClientKey>(new_azure_client(reqwest::Client::new()));
-        // data.insert::<MinecraftKey>(new_minecraft_client(&config));
         data.insert::<ConfigKey>(config);
     })
     .await;

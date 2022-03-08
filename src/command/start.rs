@@ -1,9 +1,9 @@
 use crate::azure::management::vm::VmClient;
 use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
+use crate::command::{progress, ProgressMessage};
 use crate::permission::HasPermission;
 use crate::{AzureClientKey, ConfigKey, Owners, SimpleError};
 use async_trait::async_trait;
-use log::warn;
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
 use serenity::framework::standard::CommandResult;
@@ -21,16 +21,18 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     let config = data.get::<ConfigKey>().unwrap();
     let client = data.get::<AzureClientKey>().unwrap();
 
+    let mut progress = ProgressMessage::new(msg);
+
+    progress!(progress, ctx, "Booting the server ...");
+
     // Booting the server
     client
         .start(&config.subscription, &config.rg, &config.vm)
+        .await?
+        .wait()
         .await?;
 
-    let mut bot_msg = msg.reply(ctx, "Booting the server...").await;
-
-    if let Err(why) = &bot_msg {
-        warn!("Error sending progress message, but continuing.: {}", why);
-    }
+    progress!(progress, ctx, "Server booted. Waiting for agent ...");
 
     // Waiting for server to be ready, or timeout after 120 seconds
     let loop_start = SystemTime::now();
@@ -67,18 +69,11 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     // Fire start command for game server
     client
         .run(&config.subscription, &config.rg, &config.vm, script)
+        .await?
+        .wait()
         .await?;
 
-    if let Ok(msg) = &mut bot_msg {
-        if let Err(why) = msg
-            .edit(ctx, |m| {
-                m.content("Booted the server and initiated game server start.")
-            })
-            .await
-        {
-            warn!("Error updating progress message.: {}", why);
-        }
-    }
+    progress!(progress, ctx, "Started the server.");
 
     Ok(())
 }

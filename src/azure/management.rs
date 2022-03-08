@@ -5,6 +5,37 @@ use crate::azure::authentication::TokenScope;
 use crate::azure::AzureClient;
 use crate::SimpleResult;
 use azure_core::{Body, Response};
+use http::{Request, StatusCode, Uri};
+use std::time::Duration;
+use tokio::time::sleep;
+
+pub struct AsyncTask<'a> {
+    client: &'a AzureClient,
+    uri: Uri,
+}
+
+impl<'a> AsyncTask<'a> {
+    const POLL_INTERVAL: Duration = Duration::from_secs(3);
+
+    pub async fn wait(self) -> SimpleResult<Response> {
+        let response = loop {
+            let request = Request::get(&self.uri)
+                .body(Default::default())
+                .expect("Error creating request.")
+                .into();
+
+            let response = send_request(self.client, request).await?;
+
+            if response.status() != StatusCode::ACCEPTED {
+                break response;
+            }
+
+            sleep(Self::POLL_INTERVAL).await;
+        };
+
+        Ok(response)
+    }
+}
 
 async fn send_request(
     client: &AzureClient,

@@ -1,5 +1,6 @@
 use crate::azure::management::vm::VmClient;
 use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
+use crate::command::{progress, ProgressMessage};
 use crate::permission::HasPermission;
 use crate::{AzureClientKey, ConfigKey, Owners};
 use async_trait::async_trait;
@@ -9,21 +10,16 @@ use serenity::framework::standard::CommandResult;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use std::fs;
-// use crate::minecraft::re_try;
 
 #[command]
 async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
     let data = ctx.data.read().await;
     let config = data.get::<ConfigKey>().unwrap();
-    // let mc_rcon = data.get::<MinecraftKey>().unwrap();
     let client = data.get::<AzureClientKey>().unwrap();
 
-    // re_try!(mc_rcon, save_all)?;
-    // re_try!(mc_rcon, stop)?;
+    let mut progress_message = ProgressMessage::new(msg);
 
-    // mc_rcon.disconnect().await;
-
-    let mut bot_msg = msg.reply(ctx, "Stopping game server ...").await?;
+    progress!(progress_message, ctx, "Stopping game server ...");
 
     let file = fs::read(&config.mc_stop_script)?;
     let script = ShellCommand {
@@ -40,9 +36,7 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
         .deallocate(&config.subscription, &config.rg, &config.vm)
         .await?;
 
-    bot_msg
-        .edit(ctx, |m| m.content("Stopped the server."))
-        .await?;
+    progress!(progress_message, ctx, "Stopped the server.");
 
     Ok(())
 }

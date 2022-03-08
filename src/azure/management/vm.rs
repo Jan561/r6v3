@@ -1,4 +1,4 @@
-use crate::azure::management::{api_version, send_request};
+use crate::azure::management::{api_version, send_request, AsyncTask};
 use crate::azure::{AzureClient, AzureName, SubscriptionId};
 use crate::SimpleResult;
 use async_trait::async_trait;
@@ -28,13 +28,13 @@ pub trait VmClient {
         subscription: &SubscriptionId,
         rg: &AzureName,
         name: &AzureName,
-    ) -> SimpleResult<()>;
+    ) -> SimpleResult<ActionTask<'_>>;
     async fn deallocate(
         &self,
         subscription: &SubscriptionId,
         rg: &AzureName,
         name: &AzureName,
-    ) -> SimpleResult<()>;
+    ) -> SimpleResult<ActionTask<'_>>;
     async fn instance_view(
         &self,
         subscription: &SubscriptionId,
@@ -50,7 +50,7 @@ impl VmClient for AzureClient {
         subscription: &SubscriptionId,
         rg: &AzureName,
         name: &AzureName,
-    ) -> SimpleResult<()> {
+    ) -> SimpleResult<ActionTask<'_>> {
         let url = vm!(subscription, rg, name, "start") + &api_version!(API_VERSION);
 
         let request = Request::post(url)
@@ -58,7 +58,19 @@ impl VmClient for AzureClient {
             .expect("Failed building http request.")
             .into();
 
-        send_request(self, request).await.map(|_| ())
+        let response = send_request(self, request).await?;
+
+        let task = ActionTask {
+            task: AsyncTask {
+                client: self,
+                uri: response.headers()["location"]
+                    .to_str()?
+                    .try_into()
+                    .expect("Not a valid uri."),
+            },
+        };
+
+        Ok(task)
     }
 
     async fn deallocate(
@@ -66,7 +78,7 @@ impl VmClient for AzureClient {
         subscription: &SubscriptionId,
         rg: &AzureName,
         name: &AzureName,
-    ) -> SimpleResult<()> {
+    ) -> SimpleResult<ActionTask<'_>> {
         let url = vm!(subscription, rg, name, "deallocate") + &api_version!(API_VERSION);
 
         let request = Request::post(url)
@@ -74,7 +86,19 @@ impl VmClient for AzureClient {
             .expect("Failed building http request.")
             .into();
 
-        send_request(self, request).await.map(|_| ())
+        let response = send_request(self, request).await?;
+
+        let task = ActionTask {
+            task: AsyncTask {
+                client: self,
+                uri: response.headers()["location"]
+                    .to_str()?
+                    .try_into()
+                    .expect("Not a valid uri."),
+            },
+        };
+
+        Ok(task)
     }
 
     async fn instance_view(
@@ -111,4 +135,14 @@ pub struct VmAgent {
 pub struct Status {
     #[serde(rename = "displayStatus")]
     pub display_status: String,
+}
+
+pub struct ActionTask<'a> {
+    task: AsyncTask<'a>,
+}
+
+impl<'a> ActionTask<'a> {
+    pub async fn wait(self) -> SimpleResult<()> {
+        self.task.wait().await.map(|_| ())
+    }
 }
