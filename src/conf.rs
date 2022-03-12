@@ -11,7 +11,7 @@ use std::path::{Path, PathBuf};
 
 pub type Servers = HashMap<String, ServerConfig>;
 
-pub fn prepare_path<'a>(path: impl Into<Cow<'a, Path>>) -> PathBuf {
+fn prepare_path<'a>(path: impl Into<Cow<'a, Path>>) -> PathBuf {
     let path = path.into();
 
     if path.is_relative() {
