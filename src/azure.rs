@@ -4,6 +4,7 @@ pub mod management;
 
 use crate::azure::authentication::token_store::TokenStore;
 use crate::azure::authentication::{TokenManager, TokenScope};
+use crate::conf::AzureClientConfig;
 use crate::{load_cert, load_priv_key, SimpleError, SimpleResult};
 use azure_core::{HttpClient, HttpError, Request, Response};
 use log::info;
@@ -11,6 +12,7 @@ use oauth2::AccessToken;
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use reqwest::Client;
+use serde::{Deserialize, Deserializer};
 use serenity::prelude::TypeMapKey;
 use std::env;
 use std::fmt::{Display, Formatter};
@@ -18,9 +20,6 @@ use std::ops::Deref;
 
 const AZ_DIRECTORY_ENV: &str = "R6V3_AZ_DIRECTORY";
 const AZ_CLIENT_ENV: &str = "R6V3_AZ_CLIENT";
-const AZ_SUBSCRIPTION_ENV: &str = "R6V3_AZ_SUBSCRIPTION";
-const AZ_RG_ENV: &str = "R6V3_AZ_RG";
-const AZ_VM_ENV: &str = "R6V3_AZ_VM";
 
 pub struct AzureClientKey;
 
@@ -137,6 +136,15 @@ impl From<String> for AzureId {
     }
 }
 
+impl<'de> Deserialize<'de> for AzureId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        String::deserialize(deserializer).map(Into::into)
+    }
+}
+
 pub type Directory = AzureId;
 pub type ClientId = AzureId;
 pub type SubscriptionId = AzureId;
@@ -185,6 +193,15 @@ impl From<String> for AzureName {
     }
 }
 
+impl<'de> Deserialize<'de> for AzureName {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        String::deserialize(deserializer).map(Into::into)
+    }
+}
+
 fn directory_id() -> Directory {
     Directory::from(env::var(AZ_DIRECTORY_ENV).expect("Azure Directory not found in env."))
 }
@@ -193,24 +210,8 @@ fn client_id() -> ClientId {
     ClientId::from(env::var(AZ_CLIENT_ENV).expect("Azure Client not found in env."))
 }
 
-pub fn new_azure_client(http: Client) -> AzureClient {
-    let x509 = load_cert().expect("Certificate not found.");
-    let secret = load_priv_key().expect("Private Key not found.");
+pub fn new_azure_client(http: Client, conf: &AzureClientConfig) -> AzureClient {
+    let x509 = load_cert(&conf.cert_path).expect("Certificate not found.");
+    let secret = load_priv_key(&conf.cert_key).expect("Private Key not found.");
     AzureClient::new(directory_id(), client_id(), x509, secret, http)
-}
-
-pub fn subscription() -> AzureId {
-    env::var(AZ_SUBSCRIPTION_ENV)
-        .expect("Subscription id not in env.")
-        .into()
-}
-
-pub fn resource_group() -> AzureName {
-    env::var(AZ_RG_ENV)
-        .expect("Resource Group not in env.")
-        .into()
-}
-
-pub fn vm_name() -> AzureName {
-    env::var(AZ_VM_ENV).expect("VM Name not in env.").into()
 }

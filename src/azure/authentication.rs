@@ -17,15 +17,13 @@ use openssl::hash::{DigestBytes, MessageDigest};
 use openssl::pkey::{PKey, Private};
 use openssl::x509::X509;
 use serde::{Deserialize, Serialize};
-use std::path::PathBuf;
+use std::fs;
+use std::path::Path;
 use std::time::{Duration, SystemTime};
-use std::{env, fs};
 use uuid::Uuid;
 
 const AZ_TOKEN_ENDPOINT_BASE: &str = "https://login.microsoftonline.com";
 const AZ_TOKEN_ENDPOINT_TAIL: &str = "oauth2/v2.0/token";
-const AZ_CERT_FILE: &str = "azure.crt";
-const AZ_CERT_PRIV_FILE: &str = "azure.key";
 
 const JWT_EXP_DURATION: Duration = Duration::from_secs(60);
 
@@ -214,34 +212,22 @@ fn jti() -> String {
     Uuid::new_v4().to_string()
 }
 
-fn cert_path() -> PathBuf {
-    let mut exec_dir = env::current_exe().unwrap();
-    exec_dir.set_file_name(AZ_CERT_FILE);
-    exec_dir
+fn load_cert_buf(path: impl AsRef<Path>) -> SimpleResult<Vec<u8>> {
+    fs::read(path).map_err(Into::into)
 }
 
-fn load_cert_buf() -> SimpleResult<Vec<u8>> {
-    fs::read(cert_path()).map_err(Into::into)
-}
-
-pub fn load_cert() -> SimpleResult<X509> {
-    X509::from_pem(&load_cert_buf()?).map_err(Into::into)
+pub fn load_cert(path: impl AsRef<Path>) -> SimpleResult<X509> {
+    X509::from_pem(&load_cert_buf(path)?).map_err(Into::into)
 }
 
 fn cert_fingerprint_sha1(cert: &X509) -> DigestBytes {
     cert.digest(MessageDigest::sha1()).unwrap()
 }
 
-fn priv_key_path() -> PathBuf {
-    let mut exec_dir = env::current_exe().unwrap();
-    exec_dir.set_file_name(AZ_CERT_PRIV_FILE);
-    exec_dir
+fn load_priv_key_bytes(path: impl AsRef<Path>) -> SimpleResult<Vec<u8>> {
+    fs::read(path).map_err(Into::into)
 }
 
-fn load_priv_key_bytes() -> SimpleResult<Vec<u8>> {
-    fs::read(priv_key_path()).map_err(Into::into)
-}
-
-pub fn load_priv_key() -> SimpleResult<PKey<Private>> {
-    PKey::private_key_from_pem(&load_priv_key_bytes()?).map_err(Into::into)
+pub fn load_priv_key(path: impl AsRef<Path>) -> SimpleResult<PKey<Private>> {
+    PKey::private_key_from_pem(&load_priv_key_bytes(path)?).map_err(Into::into)
 }

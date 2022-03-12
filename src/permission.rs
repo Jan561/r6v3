@@ -1,3 +1,5 @@
+pub mod rbac;
+
 use async_trait::async_trait;
 use serenity::client::Context;
 use serenity::model::id::UserId;

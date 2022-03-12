@@ -22,6 +22,9 @@ serde_json="1"
 thiserror="1"
 log="0.4"
 env_logger="0.9"
+config="0.12"
+route-recognizer = "0.3"
+lazy_static="1"
 
 [dependencies.jwt]
 features=["openssl"]
@@ -34,7 +37,3 @@ version="0.8"
 [dependencies.tokio]
 features = ["full"]
 version="1"
-
-[dependencies.rcon]
-features=["rt-tokio"]
-version="0.6"

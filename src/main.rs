@@ -1,6 +1,6 @@
 mod azure;
 mod command;
-mod config;
+mod conf;
 mod handler;
 mod hook;
 mod owners;
@@ -11,12 +11,12 @@ use crate::azure::{new_azure_client, AzureClientKey};
 use crate::command::ping::PING_COMMAND;
 use crate::command::start::START_COMMAND;
 use crate::command::stop::STOP_COMMAND;
-use crate::config::{Config, ConfigKey};
+use crate::conf::{ConfigKey, Settings};
 use crate::handler::Handler;
 use crate::hook::{after_hook, before_hook};
-// use crate::minecraft::{new_minecraft_client, MinecraftKey};
 use crate::owners::Owners;
 use azure_core::HttpError;
+use config::ConfigError;
 use http::header::ToStrError;
 use log::error;
 use serenity::client::Client;
@@ -26,10 +26,7 @@ use serenity::model::id::UserId;
 use serenity::model::prelude::CurrentApplicationInfo;
 use serenity::prelude::{SerenityError, TypeMap};
 use std::collections::HashSet;
-use std::env;
 use tokio::sync::RwLockWriteGuard;
-
-const ENV_DISCORD_TOKEN: &str = "DISCORD_TOKEN";
 
 #[derive(thiserror::Error, Debug)]
 pub enum SimpleError {
@@ -49,8 +46,10 @@ pub enum SimpleError {
     Timeout,
     #[error("TCP connection not established")]
     NotConnected,
-    #[error("Error parsing header")]
+    #[error("Error parsing header: {}", _0)]
     ToStrError(#[from] ToStrError),
+    #[error("Config error: {}", _0)]
+    ConfigError(#[from] ConfigError),
 }
 
 impl From<HttpError> for SimpleError {
@@ -70,10 +69,12 @@ struct General;
 async fn main() {
     env_logger::init();
 
-    let http = http();
+    let config = Settings::new().expect("Error reading config");
+    let token = &config.discord_token;
+
+    let http = http(token.as_str());
     let app_info = app_info(&http).await;
     let owners = owners(app_info);
-    let config = Config::from_env();
 
     let framework = StandardFramework::new()
         .configure(|c| c.prefix("~")) // set the bot's prefix to "~"
@@ -82,7 +83,6 @@ async fn main() {
         .after(after_hook);
 
     // Login with a bot token from the environment
-    let token = discord_token();
     let mut client = Client::builder(token)
         .event_handler(Handler)
         .framework(framework)
@@ -91,7 +91,7 @@ async fn main() {
 
     data_w(&client, |data| {
         data.insert::<Owners>(owners);
-        data.insert::<AzureClientKey>(new_azure_client(reqwest::Client::new()));
+        data.insert::<AzureClientKey>(new_azure_client(reqwest::Client::new(), &config.azure));
         data.insert::<ConfigKey>(config);
     })
     .await;
@@ -105,8 +105,8 @@ async fn main() {
     }
 }
 
-fn http() -> Http {
-    Http::new_with_token(&discord_token())
+fn http(token: &str) -> Http {
+    Http::new_with_token(token)
 }
 
 async fn app_info(http: &Http) -> CurrentApplicationInfo {
@@ -119,10 +119,6 @@ fn owners(app_info: CurrentApplicationInfo) -> HashSet<UserId> {
     let mut set = HashSet::new();
     set.insert(app_info.owner.id);
     set
-}
-
-fn discord_token() -> String {
-    env::var(ENV_DISCORD_TOKEN).expect("Discord Token not in env.")
 }
 
 async fn data_w<F: FnOnce(&mut RwLockWriteGuard<TypeMap>)>(client: &Client, f: F) {

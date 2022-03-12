@@ -21,19 +21,33 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
 
     progress!(progress_message, ctx, "Stopping game server ...");
 
-    let file = fs::read(&config.mc_stop_script)?;
+    let server_conf = &config.servers["mc"];
+    let file = fs::read(&server_conf.stop_script.as_ref().unwrap())?;
     let script = ShellCommand {
         script: [std::str::from_utf8(&file).unwrap()],
     };
 
     client
-        .run(&config.subscription, &config.rg, &config.vm, script)
+        .run(
+            &server_conf.vm.sub,
+            &server_conf.vm.rg,
+            &server_conf.vm.name,
+            script,
+        )
         .await?
         .wait()
         .await?;
 
+    progress!(progress_message, ctx, "Deallocating server ...");
+
     client
-        .deallocate(&config.subscription, &config.rg, &config.vm)
+        .deallocate(
+            &server_conf.vm.sub,
+            &server_conf.vm.rg,
+            &server_conf.vm.name,
+        )
+        .await?
+        .wait()
         .await?;
 
     progress!(progress_message, ctx, "Stopped the server.");

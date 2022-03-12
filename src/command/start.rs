@@ -25,9 +25,15 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
 
     progress!(progress, ctx, "Booting the server ...");
 
+    let server_conf = &config.servers["mc"];
+
     // Booting the server
     client
-        .start(&config.subscription, &config.rg, &config.vm)
+        .start(
+            &server_conf.vm.sub,
+            &server_conf.vm.rg,
+            &server_conf.vm.name,
+        )
         .await?
         .wait()
         .await?;
@@ -43,7 +49,11 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
         }
 
         let instance = client
-            .instance_view(&config.subscription, &config.rg, &config.vm)
+            .instance_view(
+                &server_conf.vm.sub,
+                &server_conf.vm.rg,
+                &server_conf.vm.name,
+            )
             .await?;
         if instance
             .vm_agent
@@ -61,14 +71,19 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
         sleep(Duration::from_secs(10)).await;
     }
 
-    let file = fs::read(&config.mc_start_script)?;
+    let file = fs::read(&server_conf.start_script.as_ref().unwrap())?;
     let script = ShellCommand {
         script: [std::str::from_utf8(&file).unwrap()],
     };
 
     // Fire start command for game server
     client
-        .run(&config.subscription, &config.rg, &config.vm, script)
+        .run(
+            &server_conf.vm.sub,
+            &server_conf.vm.rg,
+            &server_conf.vm.name,
+            script,
+        )
         .await?
         .wait()
         .await?;
