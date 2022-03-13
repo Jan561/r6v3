@@ -1,6 +1,6 @@
 use crate::azure::management::vm::VmClient;
 use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
-use crate::command::{progress, ProgressMessage};
+use crate::command::{progress, start_stop_lock, ProgressMessage};
 use crate::permission::rbac::{HasRbacPermission, RbacPermission};
 use crate::permission::HasPermission;
 use crate::{AzureClientKey, ConfigKey, RbacKey, SimpleError, SimpleResult, CMD_PREFIX};
@@ -11,7 +11,9 @@ use serenity::framework::standard::CommandResult;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use std::fs;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 
 const TIMEOUT: Duration = Duration::from_secs(120);
@@ -19,13 +21,18 @@ const TIMEOUT: Duration = Duration::from_secs(120);
 #[command]
 async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     let data = ctx.data.read().await;
+
+    let s_name = server_name(msg)?;
+
+    let _l = start_stop_lock!(data, s_name)?;
+
     let config = data.get::<ConfigKey>().unwrap();
     let client = data.get::<AzureClientKey>().unwrap();
 
     let server_conf = config
         .servers
-        .get(server_name(msg)?)
-        .ok_or(SimpleError::UsageError("Invalid instance.".to_owned()))?;
+        .get(s_name)
+        .ok_or_else(|| SimpleError::UsageError("Invalid instance.".to_owned()))?;
 
     let mut progress = ProgressMessage::new(msg);
 
@@ -102,9 +109,10 @@ fn server_name(msg: &Message) -> SimpleResult<&str> {
     if offset < msg.content.len() {
         Ok(&msg.content[offset..])
     } else {
-        Err(SimpleError::UsageError(
-            "Syntax: /start <instance>.".to_owned(),
-        ))
+        Err(SimpleError::UsageError(format!(
+            "Syntax: {}start <instance>.",
+            CMD_PREFIX
+        )))
     }
 }
 
@@ -120,7 +128,7 @@ impl RbacPermission for StartPermission {
     type T = String;
 
     fn rbac(&self) -> String {
-        format!("{}/start", self.0)
+        format!("/{}/start", self.0)
     }
 }
 

@@ -1,6 +1,10 @@
 use crate::SimpleResult;
 use serenity::client::Context;
 use serenity::model::channel::Message;
+use serenity::prelude::TypeMapKey;
+use std::collections::HashMap;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 pub mod ping;
 pub mod start;
@@ -34,6 +38,39 @@ impl<'a> ProgressMessage<'a> {
         res.map_err(Into::into)
     }
 }
+
+pub struct StartStopLockKey;
+
+impl TypeMapKey for StartStopLockKey {
+    type Value = Mutex<HashMap<String, StartStopLock>>;
+}
+
+pub type StartStopLock = Arc<Mutex<()>>;
+
+macro_rules! _start_stop_lock {
+    ($data:expr, $instance:expr) => {{
+        let mut locks = $data
+            .get::<$crate::command::StartStopLockKey>()
+            .unwrap()
+            .lock()
+            .await;
+        let lock = match locks.get($instance).cloned() {
+            Some(l) => l,
+            None => {
+                let l = Arc::new(Mutex::new(()));
+                locks.insert($instance.to_owned(), l.clone());
+                l
+            }
+        };
+        lock.try_lock_owned().map_err(|_| {
+            SimpleError::UsageError(
+                "Command execution blocked by another task, try again later.".to_owned(),
+            )
+        })
+    }};
+}
+
+use _start_stop_lock as start_stop_lock;
 
 macro_rules! _tri {
     ($res:expr, $log:expr) => {

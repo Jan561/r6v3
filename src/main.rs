@@ -11,7 +11,7 @@ use crate::azure::{new_azure_client, AzureClientKey};
 use crate::command::ping::PING_COMMAND;
 use crate::command::start::START_COMMAND;
 use crate::command::stop::STOP_COMMAND;
-use crate::command::CMD_PREFIX;
+use crate::command::{StartStopLockKey, CMD_PREFIX};
 use crate::conf::{ConfigKey, Settings};
 use crate::handler::Handler;
 use crate::hook::{after_hook, before_hook};
@@ -98,6 +98,7 @@ async fn main() {
         data.insert::<AzureClientKey>(new_azure_client(reqwest::Client::new(), &config.azure));
         data.insert::<ConfigKey>(config);
         data.insert::<RbacKey>(RbacManager::new().expect("Error creating rbac manager."));
+        data.insert::<StartStopLockKey>(Default::default());
     })
     .await;
 

@@ -1,6 +1,6 @@
 use crate::azure::management::vm::VmClient;
 use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
-use crate::command::{progress, ProgressMessage};
+use crate::command::{progress, start_stop_lock, ProgressMessage};
 use crate::permission::rbac::{HasRbacPermission, RbacPermission};
 use crate::permission::HasPermission;
 use crate::{AzureClientKey, ConfigKey, RbacKey, SimpleError, SimpleResult, CMD_PREFIX};
@@ -11,10 +11,17 @@ use serenity::framework::standard::CommandResult;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use std::fs;
+use std::sync::Arc;
+use tokio::sync::Mutex;
 
 #[command]
 async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
     let data = ctx.data.read().await;
+
+    let s_name = server_name(msg)?;
+
+    let _l = start_stop_lock!(data, s_name)?;
+
     let config = data.get::<ConfigKey>().unwrap();
     let client = data.get::<AzureClientKey>().unwrap();
 
@@ -22,8 +29,8 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
 
     let server_conf = config
         .servers
-        .get(server_name(msg)?)
-        .ok_or(SimpleError::UsageError("Invalid instance.".to_owned()))?;
+        .get(s_name)
+        .ok_or_else(|| SimpleError::UsageError("Invalid instance.".to_owned()))?;
 
     progress!(progress_message, ctx, "Stopping game server ...");
 
@@ -65,9 +72,10 @@ fn server_name(msg: &Message) -> SimpleResult<&str> {
     if offset < msg.content.len() {
         Ok(&msg.content[offset..])
     } else {
-        Err(SimpleError::UsageError(
-            "Syntax: /stop <instance>.".to_owned(),
-        ))
+        Err(SimpleError::UsageError(format!(
+            "Syntax: {}stop <instance>.",
+            CMD_PREFIX
+        )))
     }
 }
 
@@ -83,7 +91,7 @@ impl RbacPermission for StopPermission {
     type T = String;
 
     fn rbac(&self) -> String {
-        format!("{}/stop", self.0)
+        format!("/{}/stop", self.0)
     }
 }
 
