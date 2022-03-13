@@ -7,7 +7,11 @@ use serenity::prelude::TypeMapKey;
 use std::collections::HashMap;
 use std::ops::Deref;
 
-pub trait RbacPermission: AsRef<str> {}
+pub trait RbacPermission {
+    type T: AsRef<str>;
+
+    fn rbac(&self) -> Self::T;
+}
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Deserialize)]
 pub struct Role(String);
@@ -74,7 +78,7 @@ impl HasRbacPermission for Role {
     fn has_permission<P: RbacPermission>(&self, p: &P, rbac: &RbacManager) -> bool {
         rbac.r2p
             .get(self)
-            .map(|r| r.recognize(p.as_ref()).is_ok())
+            .map(|r| r.recognize(p.rbac().as_ref()).is_ok())
             .unwrap_or(false)
     }
 }

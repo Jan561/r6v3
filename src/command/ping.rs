@@ -17,13 +17,13 @@ async fn ping(ctx: &Context, msg: &Message) -> CommandResult {
 
 pub struct PingPermission;
 
-impl AsRef<str> for PingPermission {
-    fn as_ref(&self) -> &str {
+impl RbacPermission for PingPermission {
+    type T = &'static str;
+
+    fn rbac(&self) -> &'static str {
         "/ping"
     }
 }
-
-impl RbacPermission for PingPermission {}
 
 #[async_trait]
 impl HasPermission<PingPermission> for UserId {

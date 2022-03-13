@@ -3,7 +3,7 @@ use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
 use crate::command::{progress, ProgressMessage};
 use crate::permission::rbac::{HasRbacPermission, RbacPermission};
 use crate::permission::HasPermission;
-use crate::{AzureClientKey, ConfigKey, RbacKey};
+use crate::{AzureClientKey, ConfigKey, RbacKey, SimpleError, SimpleResult, CMD_PREFIX};
 use async_trait::async_trait;
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
@@ -20,9 +20,13 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
 
     let mut progress_message = ProgressMessage::new(msg);
 
+    let server_conf = config
+        .servers
+        .get(server_name(msg)?)
+        .ok_or(SimpleError::UsageError("Invalid instance.".to_owned()))?;
+
     progress!(progress_message, ctx, "Stopping game server ...");
 
-    let server_conf = &config.servers["mc"];
     let file = fs::read(&server_conf.stop_script.as_ref().unwrap())?;
     let script = ShellCommand {
         script: [std::str::from_utf8(&file).unwrap()],
@@ -56,15 +60,32 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
     Ok(())
 }
 
-pub struct StopPermission;
-
-impl AsRef<str> for StopPermission {
-    fn as_ref(&self) -> &str {
-        "/mc/stop"
+fn server_name(msg: &Message) -> SimpleResult<&str> {
+    let offset = CMD_PREFIX.len() + "stop".len() + 1;
+    if offset < msg.content.len() {
+        Ok(&msg.content[offset..])
+    } else {
+        Err(SimpleError::UsageError(
+            "Syntax: /stop <instance>.".to_owned(),
+        ))
     }
 }
 
-impl RbacPermission for StopPermission {}
+pub struct StopPermission(String);
+
+impl StopPermission {
+    pub fn from_message(msg: &Message) -> SimpleResult<Self> {
+        Ok(StopPermission(server_name(msg)?.to_owned()))
+    }
+}
+
+impl RbacPermission for StopPermission {
+    type T = String;
+
+    fn rbac(&self) -> String {
+        format!("{}/stop", self.0)
+    }
+}
 
 #[async_trait]
 impl HasPermission<StopPermission> for UserId {

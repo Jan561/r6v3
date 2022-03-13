@@ -3,7 +3,7 @@ use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
 use crate::command::{progress, ProgressMessage};
 use crate::permission::rbac::{HasRbacPermission, RbacPermission};
 use crate::permission::HasPermission;
-use crate::{AzureClientKey, ConfigKey, RbacKey, SimpleError};
+use crate::{AzureClientKey, ConfigKey, RbacKey, SimpleError, SimpleResult, CMD_PREFIX};
 use async_trait::async_trait;
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
@@ -22,11 +22,14 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     let config = data.get::<ConfigKey>().unwrap();
     let client = data.get::<AzureClientKey>().unwrap();
 
+    let server_conf = config
+        .servers
+        .get(server_name(msg)?)
+        .ok_or(SimpleError::UsageError("Invalid instance.".to_owned()))?;
+
     let mut progress = ProgressMessage::new(msg);
 
     progress!(progress, ctx, "Booting the server ...");
-
-    let server_conf = &config.servers["mc"];
 
     // Booting the server
     client
@@ -94,15 +97,32 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     Ok(())
 }
 
-pub struct StartPermission;
-
-impl AsRef<str> for StartPermission {
-    fn as_ref(&self) -> &str {
-        "/mc/start"
+fn server_name(msg: &Message) -> SimpleResult<&str> {
+    let offset = CMD_PREFIX.len() + "start".len() + 1;
+    if offset < msg.content.len() {
+        Ok(&msg.content[offset..])
+    } else {
+        Err(SimpleError::UsageError(
+            "Syntax: /start <instance>.".to_owned(),
+        ))
     }
 }
 
-impl RbacPermission for StartPermission {}
+pub struct StartPermission(String);
+
+impl StartPermission {
+    pub fn from_message(msg: &Message) -> SimpleResult<Self> {
+        Ok(StartPermission(server_name(msg)?.to_owned()))
+    }
+}
+
+impl RbacPermission for StartPermission {
+    type T = String;
+
+    fn rbac(&self) -> String {
+        format!("{}/start", self.0)
+    }
+}
 
 #[async_trait]
 impl HasPermission<StartPermission> for UserId {

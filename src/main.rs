@@ -11,6 +11,7 @@ use crate::azure::{new_azure_client, AzureClientKey};
 use crate::command::ping::PING_COMMAND;
 use crate::command::start::START_COMMAND;
 use crate::command::stop::STOP_COMMAND;
+use crate::command::CMD_PREFIX;
 use crate::conf::{ConfigKey, Settings};
 use crate::handler::Handler;
 use crate::hook::{after_hook, before_hook};
@@ -31,26 +32,28 @@ use tokio::sync::RwLockWriteGuard;
 
 #[derive(thiserror::Error, Debug)]
 pub enum SimpleError {
-    #[error("Discord Client Error: {}", _0)]
+    #[error("Discord Client Error: {}", .0)]
     SerenityError(#[from] SerenityError),
-    #[error("Azure API Error: {}", _0)]
+    #[error("Azure API Error: {}", .0)]
     AzCoreError(#[from] azure_core::Error),
-    #[error("OpenSSL Error: {}", _0)]
+    #[error("OpenSSL Error: {}", .0)]
     OpenSslError(#[from] openssl::error::ErrorStack),
-    #[error("IO Error: {}", _0)]
+    #[error("IO Error: {}", .0)]
     IoError(#[from] std::io::Error),
-    #[error("JWT Error: {}", _0)]
+    #[error("JWT Error: {}", .0)]
     JwtError(#[from] jwt::Error),
-    #[error("Serde Error: {}", _0)]
+    #[error("Serde Error: {}", .0)]
     SerdeError(#[from] serde_json::Error),
     #[error("Timeout")]
     Timeout,
     #[error("TCP connection not established")]
     NotConnected,
-    #[error("Error parsing header: {}", _0)]
+    #[error("Error parsing header: {}", .0)]
     ToStrError(#[from] ToStrError),
-    #[error("Config error: {}", _0)]
+    #[error("Config error: {}", .0)]
     ConfigError(#[from] ConfigError),
+    #[error("{}", .0)]
+    UsageError(String),
 }
 
 impl From<HttpError> for SimpleError {
@@ -78,7 +81,7 @@ async fn main() {
     let owners = owners(app_info);
 
     let framework = StandardFramework::new()
-        .configure(|c| c.prefix("~")) // set the bot's prefix to "~"
+        .configure(|c| c.prefix(CMD_PREFIX)) // set the bot's prefix to "~"
         .group(&GENERAL_GROUP)
         .before(before_hook)
         .after(after_hook);

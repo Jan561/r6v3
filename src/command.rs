@@ -6,6 +6,8 @@ pub mod ping;
 pub mod start;
 pub mod stop;
 
+pub const CMD_PREFIX: &str = "~";
+
 pub struct ProgressMessage<'a> {
     user_msg: &'a Message,
     bot_msg: Option<Message>,
