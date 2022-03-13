@@ -3,37 +3,35 @@ name = "r6v3"
 version = "0.1.0"
 edition = "2021"
 
-# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
-
 [dependencies]
-serenity="0.10"
-async-trait="0.1"
-azure_core="0.1"
-reqwest="0.11"
-http="0.2"
-serde="1"
-openssl="0.10"
-base64="0.13"
-urlencoding="2"
-bytes="1"
-chrono="0.4"
-oauth2="4"
-serde_json="1"
-thiserror="1"
-log="0.4"
-env_logger="0.9"
-config="0.12"
+serenity = "0.10"
+async-trait = "0.1"
+azure_core = "0.1"
+reqwest = "0.11"
+http = "0.2"
+serde = "1"
+openssl = "0.10"
+base64 = "0.13"
+urlencoding = "2"
+bytes = "1"
+chrono = "0.4"
+oauth2 = "4"
+serde_json = "1"
+thiserror = "1"
+log = "0.4"
+env_logger = "0.9"
+config = "0.12"
 route-recognizer = "0.3"
-lazy_static="1"
+lazy_static = "1"
 
 [dependencies.jwt]
-features=["openssl"]
-version="0.16"
+features = ["openssl"]
+version = "0.16"
 
 [dependencies.uuid]
-features=["v4"]
-version="0.8"
+features = ["v4"]
+version = "0.8"
 
 [dependencies.tokio]
 features = ["full"]
-version="1"
+version = "1"
