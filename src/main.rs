@@ -15,6 +15,7 @@ use crate::conf::{ConfigKey, Settings};
 use crate::handler::Handler;
 use crate::hook::{after_hook, before_hook};
 use crate::owners::Owners;
+use crate::permission::rbac::{RbacKey, RbacManager};
 use azure_core::HttpError;
 use config::ConfigError;
 use http::header::ToStrError;
@@ -93,6 +94,7 @@ async fn main() {
         data.insert::<Owners>(owners);
         data.insert::<AzureClientKey>(new_azure_client(reqwest::Client::new(), &config.azure));
         data.insert::<ConfigKey>(config);
+        data.insert::<RbacKey>(RbacManager::new().expect("Error creating rbac manager."));
     })
     .await;
 

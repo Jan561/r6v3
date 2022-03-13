@@ -1,8 +1,9 @@
 use crate::azure::management::vm::VmClient;
 use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
 use crate::command::{progress, ProgressMessage};
+use crate::permission::rbac::{HasRbacPermission, RbacPermission};
 use crate::permission::HasPermission;
-use crate::{AzureClientKey, ConfigKey, Owners, SimpleError};
+use crate::{AzureClientKey, ConfigKey, RbacKey, SimpleError};
 use async_trait::async_trait;
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
@@ -95,14 +96,19 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
 
 pub struct StartPermission;
 
+impl AsRef<str> for StartPermission {
+    fn as_ref(&self) -> &str {
+        "/mc/start"
+    }
+}
+
+impl RbacPermission for StartPermission {}
+
 #[async_trait]
 impl HasPermission<StartPermission> for UserId {
-    async fn has_permission(&self, ctx: &Context, _: &StartPermission) -> bool {
-        ctx.data
-            .read()
-            .await
-            .get::<Owners>()
-            .unwrap()
-            .contains(self)
+    async fn has_permission(&self, ctx: &Context, p: &StartPermission) -> bool {
+        let data = ctx.data.read().await;
+        let rbac = data.get::<RbacKey>().unwrap();
+        <Self as HasRbacPermission>::has_permission(self, p, rbac)
     }
 }

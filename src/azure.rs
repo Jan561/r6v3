@@ -181,7 +181,7 @@ impl From<String> for AzureName {
     fn from(s: String) -> Self {
         if !AzureName::valid_string(&s) {
             panic!(
-                "All characters of an azure name must be alphanumeric or '_', '-','.','(', ')'."
+                "All characters of an azure name must be alphanumeric or '_', '-', '.', '(', ')'."
             );
         }
 
