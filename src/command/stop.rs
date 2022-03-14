@@ -11,8 +11,6 @@ use serenity::framework::standard::CommandResult;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use std::fs;
-use std::sync::Arc;
-use tokio::sync::Mutex;
 
 #[command]
 async fn stop(ctx: &Context, msg: &Message) -> CommandResult {

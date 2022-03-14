@@ -2,9 +2,11 @@ use crate::SimpleResult;
 use serenity::client::Context;
 use serenity::model::channel::Message;
 use serenity::prelude::TypeMapKey;
+use std::borrow::Cow;
+use std::collections::hash_map::Entry;
 use std::collections::HashMap;
 use std::sync::Arc;
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, RwLock};
 
 pub mod ping;
 pub mod start;
@@ -42,26 +44,46 @@ impl<'a> ProgressMessage<'a> {
 pub struct StartStopLockKey;
 
 impl TypeMapKey for StartStopLockKey {
-    type Value = Mutex<HashMap<String, StartStopLock>>;
+    type Value = StartStopLocks;
+}
+
+#[derive(Default)]
+pub struct StartStopLocks(RwLock<HashMap<String, StartStopLock>>);
+
+impl StartStopLocks {
+    pub async fn get<'a>(&self, key: impl Into<Cow<'a, str>>) -> StartStopLock {
+        let key = key.into();
+        match self.try_get(&key).await {
+            Some(lock) => lock,
+            None => self.create(key).await,
+        }
+    }
+
+    pub async fn try_get(&self, key: impl AsRef<str>) -> Option<StartStopLock> {
+        let locks = self.0.read().await;
+        locks.get(key.as_ref()).cloned()
+    }
+
+    pub async fn create(&self, key: impl ToString) -> StartStopLock {
+        let mut locks = self.0.write().await;
+        let entry = locks.entry(key.to_string());
+        match entry {
+            Entry::Occupied(lock) => lock.get().clone(),
+            Entry::Vacant(e) => {
+                let lock = Arc::new(Mutex::new(()));
+                e.insert(lock.clone());
+                lock
+            }
+        }
+    }
 }
 
 pub type StartStopLock = Arc<Mutex<()>>;
 
 macro_rules! _start_stop_lock {
     ($data:expr, $instance:expr) => {{
-        let mut locks = $data
-            .get::<$crate::command::StartStopLockKey>()
-            .unwrap()
-            .lock()
-            .await;
-        let lock = match locks.get($instance).cloned() {
-            Some(l) => l,
-            None => {
-                let l = Arc::new(Mutex::new(()));
-                locks.insert($instance.to_owned(), l.clone());
-                l
-            }
-        };
+        let locks = $data.get::<$crate::command::StartStopLockKey>().unwrap();
+        let lock = locks.get($instance).await;
         lock.try_lock_owned().map_err(|_| {
             SimpleError::UsageError(
                 "Command execution blocked by another task, try again later.".to_owned(),

@@ -11,9 +11,7 @@ use serenity::framework::standard::CommandResult;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use std::fs;
-use std::sync::Arc;
 use std::time::{Duration, SystemTime};
-use tokio::sync::Mutex;
 use tokio::time::sleep;
 
 const TIMEOUT: Duration = Duration::from_secs(120);
