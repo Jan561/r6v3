@@ -14,7 +14,7 @@ use serenity::model::id::UserId;
 use std::fs;
 use std::time::Duration;
 
-const TIMEOUT: Duration = Duration::from_secs(180);
+const TIMEOUT: Duration = Duration::from_secs(300);
 
 #[command]
 async fn stop(ctx: &Context, msg: &Message) -> CommandResult {

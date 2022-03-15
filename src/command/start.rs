@@ -15,6 +15,7 @@ use std::time::{Duration, SystemTime};
 use tokio::time::sleep;
 
 const TIMEOUT: Duration = Duration::from_secs(120);
+const SCRIPT_TIMEOUT: Duration = Duration::from_secs(300);
 
 #[command]
 async fn start(ctx: &Context, msg: &Message) -> CommandResult {
@@ -63,6 +64,16 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
 
     loop {
         if SystemTime::now().duration_since(loop_start).unwrap() > TIMEOUT {
+            client
+                .deallocate(
+                    &server_conf.vm.sub,
+                    &server_conf.vm.rg,
+                    &server_conf.vm.name,
+                )
+                .await?
+                .wait()
+                .await?;
+
             return Err(SimpleError::Timeout.into());
         }
 
@@ -103,7 +114,7 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
             script,
         )
         .await?
-        .timeout(Some(TIMEOUT))
+        .timeout(Some(SCRIPT_TIMEOUT))
         .wait()
         .await;
 
