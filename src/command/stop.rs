@@ -5,12 +5,16 @@ use crate::permission::rbac::{HasRbacPermission, RbacPermission};
 use crate::permission::HasPermission;
 use crate::{AzureClientKey, ConfigKey, RbacKey, SimpleError, SimpleResult, CMD_PREFIX};
 use async_trait::async_trait;
+use log::warn;
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
 use serenity::framework::standard::CommandResult;
 use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use std::fs;
+use std::time::Duration;
+
+const TIMEOUT: Duration = Duration::from_secs(180);
 
 #[command]
 async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
@@ -37,6 +41,8 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
         script: [std::str::from_utf8(&file).unwrap()],
     };
 
+    let mut force = false;
+
     client
         .run(
             &server_conf.vm.sub,
@@ -45,8 +51,18 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
             script,
         )
         .await?
+        .timeout(Some(TIMEOUT))
         .wait()
-        .await?;
+        .await
+        .map(|_| ())
+        .or_else(|e| match e {
+            SimpleError::Timeout => {
+                force = true;
+                warn!("Failed to shutdown server gracefully: {:?}", e);
+                Ok(())
+            }
+            other => Err(other),
+        })?;
 
     progress!(progress_message, ctx, "Deallocating server ...");
 
@@ -60,7 +76,11 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
         .wait()
         .await?;
 
-    progress!(progress_message, ctx, "Stopped the server.");
+    if !force {
+        progress!(progress_message, ctx, "Stopped the server.");
+    } else {
+        progress!(progress_message, ctx, "Stopped the server forcefully.");
+    }
 
     Ok(())
 }

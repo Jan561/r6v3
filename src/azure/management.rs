@@ -3,21 +3,37 @@ pub mod vm_run_cmd;
 
 use crate::azure::authentication::TokenScope;
 use crate::azure::AzureClient;
-use crate::SimpleResult;
+use crate::{SimpleError, SimpleResult};
 use azure_core::{Body, Response};
 use http::{Request, StatusCode, Uri};
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use tokio::time::sleep;
 
 pub struct AsyncTask<'a> {
     client: &'a AzureClient,
     uri: Uri,
+    timeout: Option<Duration>,
 }
 
 impl<'a> AsyncTask<'a> {
     const POLL_INTERVAL: Duration = Duration::from_secs(3);
 
+    pub fn new(client: &'a AzureClient, uri: Uri) -> Self {
+        Self {
+            client,
+            uri,
+            timeout: None,
+        }
+    }
+
+    pub fn timeout(mut self, timeout: Option<Duration>) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
     pub async fn wait(self) -> SimpleResult<Response> {
+        let begin = SystemTime::now();
+
         let response = loop {
             let request = Request::get(&self.uri)
                 .body(Default::default())
@@ -28,6 +44,12 @@ impl<'a> AsyncTask<'a> {
 
             if response.status() != StatusCode::ACCEPTED {
                 break response;
+            }
+
+            if let Some(timeout) = self.timeout {
+                if SystemTime::now().duration_since(begin).unwrap() > timeout {
+                    return Err(SimpleError::Timeout);
+                }
             }
 
             sleep(Self::POLL_INTERVAL).await;

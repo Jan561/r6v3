@@ -3,6 +3,9 @@ name = "r6v3"
 version = "0.1.0"
 edition = "2021"
 
+[profile.release]
+strip = "symbols"
+
 [dependencies]
 serenity = "0.10"
 async-trait = "0.1"

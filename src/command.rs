@@ -114,3 +114,17 @@ macro_rules! _progress {
 }
 
 use _progress as progress;
+
+macro_rules! _stop_on_timeout {
+    ($res:expr, $client:expr, $sub:expr, $rg:expr, $vm:expr) => {
+        match $res {
+            Err($crate::SimpleError::Timeout) => {
+                $client.deallocate($sub, $rg, $vm).await?.wait().await?;
+                Err($crate::SimpleError::Timeout)
+            }
+            r => r,
+        }
+    };
+}
+
+use _stop_on_timeout as stop_on_timeout;

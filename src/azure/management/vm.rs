@@ -4,6 +4,7 @@ use crate::SimpleResult;
 use async_trait::async_trait;
 use http::Request;
 use serde::Deserialize;
+use std::time::Duration;
 
 const API_VERSION: &str = "2021-11-01";
 
@@ -61,13 +62,13 @@ impl VmClient for AzureClient {
         let response = send_request(self, request).await?;
 
         let task = ActionTask {
-            task: AsyncTask {
-                client: self,
-                uri: response.headers()["location"]
+            task: AsyncTask::new(
+                self,
+                response.headers()["location"]
                     .to_str()?
                     .try_into()
                     .expect("Not a valid uri."),
-            },
+            ),
         };
 
         Ok(task)
@@ -89,13 +90,13 @@ impl VmClient for AzureClient {
         let response = send_request(self, request).await?;
 
         let task = ActionTask {
-            task: AsyncTask {
-                client: self,
-                uri: response.headers()["location"]
+            task: AsyncTask::new(
+                self,
+                response.headers()["location"]
                     .to_str()?
                     .try_into()
                     .expect("Not a valid uri."),
-            },
+            ),
         };
 
         Ok(task)
@@ -142,6 +143,12 @@ pub struct ActionTask<'a> {
 }
 
 impl<'a> ActionTask<'a> {
+    pub fn timeout(self, timeout: Option<Duration>) -> Self {
+        Self {
+            task: self.task.timeout(timeout),
+        }
+    }
+
     pub async fn wait(self) -> SimpleResult<()> {
         self.task.wait().await.map(|_| ())
     }

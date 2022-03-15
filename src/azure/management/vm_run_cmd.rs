@@ -9,6 +9,7 @@ use serde::{Serialize, Serializer};
 use serde_json::{json, Value};
 use std::cell::RefCell;
 use std::marker::PhantomData;
+use std::time::Duration;
 
 const API_VERSION: &str = "2021-07-01";
 
@@ -102,6 +103,7 @@ impl VmRunCmdClient for AzureClient {
                     Ok(CommandTask {
                         resp_type: ResponseType::Status200(r.into_body_string().await),
                         client: self,
+                        timeout: None,
                         _c: PhantomData,
                     })
                 } else if r.status() == StatusCode::ACCEPTED {
@@ -111,6 +113,7 @@ impl VmRunCmdClient for AzureClient {
                             location.try_into().expect("Not a valid uri."),
                         ),
                         client: self,
+                        timeout: None,
                         _c: PhantomData,
                     })
                 } else {
@@ -165,6 +168,7 @@ impl<S> Command for ShellCommand<S> {
 pub struct CommandTask<'a, C> {
     resp_type: ResponseType,
     client: &'a AzureClient,
+    timeout: Option<Duration>,
     _c: PhantomData<C>,
 }
 
@@ -172,16 +176,22 @@ impl<'a, C> CommandTask<'a, C>
 where
     C: Command,
 {
+    pub fn timeout(mut self, timeout: Option<Duration>) -> Self {
+        self.timeout = timeout;
+        self
+    }
+
     pub async fn wait(self) -> SimpleResult<C::Output> {
         let response = match self.resp_type {
             ResponseType::Status200(ret) => ret,
             ResponseType::Status202(uri) => {
-                let task = AsyncTask {
-                    client: self.client,
-                    uri,
-                };
+                let task = AsyncTask::new(self.client, uri);
 
-                task.wait().await?.into_body_string().await
+                task.timeout(self.timeout)
+                    .wait()
+                    .await?
+                    .into_body_string()
+                    .await
             }
         };
 

@@ -1,6 +1,6 @@
 use crate::azure::management::vm::VmClient;
 use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
-use crate::command::{progress, start_stop_lock, ProgressMessage};
+use crate::command::{progress, start_stop_lock, stop_on_timeout, ProgressMessage};
 use crate::permission::rbac::{HasRbacPermission, RbacPermission};
 use crate::permission::HasPermission;
 use crate::{AzureClientKey, ConfigKey, RbacKey, SimpleError, SimpleResult, CMD_PREFIX};
@@ -37,15 +37,24 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     progress!(progress, ctx, "Booting the server ...");
 
     // Booting the server
-    client
+    let start_res = client
         .start(
             &server_conf.vm.sub,
             &server_conf.vm.rg,
             &server_conf.vm.name,
         )
         .await?
+        .timeout(Some(TIMEOUT))
         .wait()
-        .await?;
+        .await;
+
+    stop_on_timeout!(
+        start_res,
+        client,
+        &server_conf.vm.sub,
+        &server_conf.vm.rg,
+        &server_conf.vm.name
+    )?;
 
     progress!(progress, ctx, "Server booted. Waiting for agent ...");
 
@@ -86,7 +95,7 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     };
 
     // Fire start command for game server
-    client
+    let run_res = client
         .run(
             &server_conf.vm.sub,
             &server_conf.vm.rg,
@@ -94,8 +103,17 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
             script,
         )
         .await?
+        .timeout(Some(TIMEOUT))
         .wait()
-        .await?;
+        .await;
+
+    stop_on_timeout!(
+        run_res,
+        client,
+        &server_conf.vm.sub,
+        &server_conf.vm.rg,
+        &server_conf.vm.name
+    )?;
 
     progress!(progress, ctx, "Started the server.");
 
