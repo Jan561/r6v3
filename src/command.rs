@@ -41,17 +41,17 @@ impl<'a> ProgressMessage<'a> {
     }
 }
 
-pub struct StartStopLockKey;
+pub struct InstanceLockKey;
 
-impl TypeMapKey for StartStopLockKey {
-    type Value = StartStopLocks;
+impl TypeMapKey for InstanceLockKey {
+    type Value = InstanceLocks;
 }
 
 #[derive(Default)]
-pub struct StartStopLocks(RwLock<HashMap<String, StartStopLock>>);
+pub struct InstanceLocks(RwLock<HashMap<String, InstanceLock>>);
 
-impl StartStopLocks {
-    pub async fn get<'a>(&self, key: impl Into<Cow<'a, str>>) -> StartStopLock {
+impl InstanceLocks {
+    pub async fn get<'a>(&self, key: impl Into<Cow<'a, str>>) -> InstanceLock {
         let key = key.into();
         match self.try_get(&key).await {
             Some(lock) => lock,
@@ -59,12 +59,12 @@ impl StartStopLocks {
         }
     }
 
-    pub async fn try_get(&self, key: impl AsRef<str>) -> Option<StartStopLock> {
+    pub async fn try_get(&self, key: impl AsRef<str>) -> Option<InstanceLock> {
         let locks = self.0.read().await;
         locks.get(key.as_ref()).cloned()
     }
 
-    pub async fn create(&self, key: impl ToString) -> StartStopLock {
+    pub async fn create(&self, key: impl ToString) -> InstanceLock {
         let mut locks = self.0.write().await;
         let entry = locks.entry(key.to_string());
         match entry {
@@ -78,11 +78,11 @@ impl StartStopLocks {
     }
 }
 
-pub type StartStopLock = Arc<Mutex<()>>;
+pub type InstanceLock = Arc<Mutex<()>>;
 
-macro_rules! _start_stop_lock {
+macro_rules! instance_lock_ {
     ($data:expr, $instance:expr) => {{
-        let locks = $data.get::<$crate::command::StartStopLockKey>().unwrap();
+        let locks = $data.get::<$crate::command::InstanceLockKey>().unwrap();
         let lock = locks.get($instance).await;
         lock.try_lock_owned().map_err(|_| {
             SimpleError::UsageError(
@@ -92,7 +92,7 @@ macro_rules! _start_stop_lock {
     }};
 }
 
-use _start_stop_lock as start_stop_lock;
+use instance_lock_ as instance_lock;
 
 macro_rules! _tri {
     ($res:expr, $log:expr) => {

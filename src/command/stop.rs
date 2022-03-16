@@ -1,11 +1,11 @@
 use crate::azure::management::vm::VmClient;
 use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
-use crate::command::{progress, start_stop_lock, ProgressMessage};
+use crate::command::{instance_lock, progress, ProgressMessage};
 use crate::permission::rbac::{HasRbacPermission, RbacPermission};
 use crate::permission::HasPermission;
 use crate::{AzureClientKey, ConfigKey, RbacKey, SimpleError, SimpleResult, CMD_PREFIX};
 use async_trait::async_trait;
-use log::warn;
+use log::{info, warn};
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
 use serenity::framework::standard::CommandResult;
@@ -22,7 +22,7 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
 
     let s_name = server_name(msg)?;
 
-    let _l = start_stop_lock!(data, s_name)?;
+    let _l = instance_lock!(data, s_name)?;
 
     let config = data.get::<ConfigKey>().unwrap();
     let client = data.get::<AzureClientKey>().unwrap();
@@ -34,7 +34,8 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
         .get(s_name)
         .ok_or_else(|| SimpleError::UsageError("Invalid instance.".to_owned()))?;
 
-    progress!(progress_message, ctx, "Stopping game server ...");
+    progress!(progress_message, ctx, "Executing stop script  ...");
+    info!("Executing stop script on {}.", s_name);
 
     let file = fs::read(&server_conf.stop_script.as_ref().unwrap())?;
     let script = ShellCommand {
@@ -65,6 +66,7 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
         })?;
 
     progress!(progress_message, ctx, "Deallocating server ...");
+    info!("Deallocating instance {}.", s_name);
 
     client
         .deallocate(
@@ -81,6 +83,8 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
     } else {
         progress!(progress_message, ctx, "Stopped the server forcefully.");
     }
+
+    info!("Successfully stopped instance {}.", s_name);
 
     Ok(())
 }

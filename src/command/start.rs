@@ -1,10 +1,11 @@
 use crate::azure::management::vm::VmClient;
 use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
-use crate::command::{progress, start_stop_lock, stop_on_timeout, ProgressMessage};
+use crate::command::{instance_lock, progress, stop_on_timeout, ProgressMessage};
 use crate::permission::rbac::{HasRbacPermission, RbacPermission};
 use crate::permission::HasPermission;
 use crate::{AzureClientKey, ConfigKey, RbacKey, SimpleError, SimpleResult, CMD_PREFIX};
 use async_trait::async_trait;
+use log::info;
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
 use serenity::framework::standard::CommandResult;
@@ -23,7 +24,7 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
 
     let s_name = server_name(msg)?;
 
-    let _l = start_stop_lock!(data, s_name)?;
+    let _l = instance_lock!(data, s_name)?;
 
     let config = data.get::<ConfigKey>().unwrap();
     let client = data.get::<AzureClientKey>().unwrap();
@@ -36,6 +37,7 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     let mut progress = ProgressMessage::new(msg);
 
     progress!(progress, ctx, "Booting the server ...");
+    info!("Booting instance {}.", s_name);
 
     // Booting the server
     let start_res = client
@@ -58,6 +60,7 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     )?;
 
     progress!(progress, ctx, "Server booted. Waiting for agent ...");
+    info!("Successfully booted {}, waiting for agent.", s_name);
 
     // Waiting for server to be ready, or timeout after 120 seconds
     let loop_start = SystemTime::now();
@@ -105,6 +108,9 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
         script: [std::str::from_utf8(&file).unwrap()],
     };
 
+    progress!(progress, ctx, "Executing start script ...");
+    info!("Executing start script on {}.", s_name);
+
     // Fire start command for game server
     let run_res = client
         .run(
@@ -127,6 +133,7 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     )?;
 
     progress!(progress, ctx, "Started the server.");
+    info!("Successfully started {}.", s_name);
 
     Ok(())
 }
