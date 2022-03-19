@@ -58,3 +58,9 @@ start = ["/*/start"]
 # User ID of Friend
 987654321 = ["mc", "ts"]
 ```
+
+- `groups.toml`: Assign roles to discord roles
+```toml
+# Role ID of the admin role
+121212121 = ["owner"]
+```
