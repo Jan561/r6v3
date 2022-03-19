@@ -60,16 +60,39 @@ pub async fn after_hook(
 
 async fn has_permission(ctx: &Context, msg: &Message, cmd_name: &str) -> SimpleResult<bool> {
     let user = msg.author.id;
+
+    macro_rules! check_roles {
+        ($perm:expr) => {{
+            match msg.guild(ctx).await {
+                None => false,
+                Some(g) => match g.member(ctx, user).await {
+                    Ok(member) => {
+                        let mut check = false;
+                        for r in member.roles.iter() {
+                            if r.has_permission(ctx, $perm).await {
+                                check = true;
+                                break;
+                            }
+                        }
+                        check
+                    }
+                    Err(e) => return Err(e.into()),
+                },
+            }
+        }};
+    }
+
+    macro_rules! check_permission {
+        ($perm:expr) => {{
+            let p = $perm;
+            user.has_permission(ctx, &p).await || check_roles!(&p)
+        }};
+    }
+
     let r = match cmd_name {
-        "ping" => user.has_permission(ctx, &PingPermission).await,
-        "start" => {
-            user.has_permission(ctx, &StartPermission::from_message(msg)?)
-                .await
-        }
-        "stop" => {
-            user.has_permission(ctx, &StopPermission::from_message(msg)?)
-                .await
-        }
+        "ping" => check_permission!(PingPermission),
+        "start" => check_permission!(StartPermission::from_message(msg)?),
+        "stop" => check_permission!(StopPermission::from_message(msg)?),
         _ => user.has_permission(ctx, &DefaultPermission).await,
     };
 
@@ -86,11 +109,11 @@ async fn handle_error(err: &SimpleError, ctx: &Context, msg: &Message) {
         return;
     }
 
+    error!("Command execution unsuccessful: {:?}", err);
     print_error(err, ctx, msg).await;
 }
 
 async fn print_error(err: &SimpleError, ctx: &Context, msg: &Message) {
-    error!("Command execution unsuccessful: {:?}", err);
     let res = msg
         .reply(ctx, format!("An internal error occurred: {}", err))
         .await;

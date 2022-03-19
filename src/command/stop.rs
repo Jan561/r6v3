@@ -1,16 +1,14 @@
 use crate::azure::management::vm::VmClient;
 use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
 use crate::command::{instance_lock, progress, ProgressMessage};
-use crate::permission::rbac::{HasRbacPermission, RbacPermission};
-use crate::permission::HasPermission;
-use crate::{AzureClientKey, ConfigKey, RbacKey, SimpleError, SimpleResult, CMD_PREFIX};
-use async_trait::async_trait;
+use crate::permission::has_permission;
+use crate::permission::rbac::RbacPermission;
+use crate::{AzureClientKey, ConfigKey, SimpleError, SimpleResult, CMD_PREFIX};
 use log::{info, warn};
 use serenity::client::Context;
 use serenity::framework::standard::macros::command;
 use serenity::framework::standard::CommandResult;
 use serenity::model::channel::Message;
-use serenity::model::id::UserId;
 use std::fs;
 use std::time::Duration;
 
@@ -117,11 +115,4 @@ impl RbacPermission for StopPermission {
     }
 }
 
-#[async_trait]
-impl HasPermission<StopPermission> for UserId {
-    async fn has_permission(&self, ctx: &Context, p: &StopPermission) -> bool {
-        let data = ctx.data.read().await;
-        let rbac = data.get::<RbacKey>().unwrap();
-        <Self as HasRbacPermission>::has_permission(self, p, rbac)
-    }
-}
+has_permission! { StopPermission }

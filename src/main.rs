@@ -78,7 +78,7 @@ async fn main() {
 
     let http = http(token.as_str());
     let app_info = app_info(&http).await;
-    let owners = owners(app_info);
+    let owners = owners(&app_info);
 
     let framework = StandardFramework::new()
         .configure(|c| c.prefix(CMD_PREFIX)) // set the bot's prefix to "~"
@@ -121,7 +121,7 @@ async fn app_info(http: &Http) -> CurrentApplicationInfo {
         .expect("Error getting app info.")
 }
 
-fn owners(app_info: CurrentApplicationInfo) -> HashSet<UserId> {
+fn owners(app_info: &CurrentApplicationInfo) -> HashSet<UserId> {
     let mut set = HashSet::new();
     set.insert(app_info.owner.id);
     set

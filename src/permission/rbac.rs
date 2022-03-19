@@ -2,7 +2,7 @@ use crate::SimpleResult;
 use config::{Config, File, FileFormat};
 use route_recognizer::Router;
 use serde::Deserialize;
-use serenity::model::id::UserId;
+use serenity::model::id::{RoleId, UserId};
 use serenity::prelude::TypeMapKey;
 use std::collections::HashMap;
 use std::ops::Deref;
@@ -25,12 +25,15 @@ impl Deref for Role {
 }
 
 pub type U2r = HashMap<UserId, Vec<Role>>;
+pub type G2r = HashMap<RoleId, Vec<Role>>;
 pub type R2p = HashMap<Role, Router<()>>;
 
 #[derive(Debug, Clone)]
 pub struct RbacManager {
     // User to Role
     pub u2r: U2r,
+    // Discord Role to Role
+    pub g2r: G2r,
     // Role to Permission
     pub r2p: R2p,
 }
@@ -39,6 +42,11 @@ impl RbacManager {
     pub fn new() -> SimpleResult<Self> {
         let u2r = Config::builder()
             .add_source(File::new("users.toml", FileFormat::Toml))
+            .build()?
+            .try_deserialize()?;
+
+        let g2r = Config::builder()
+            .add_source(File::new("groups.toml", FileFormat::Toml))
             .build()?
             .try_deserialize()?;
 
@@ -60,7 +68,7 @@ impl RbacManager {
             })
             .collect();
 
-        Ok(RbacManager { u2r, r2p })
+        Ok(RbacManager { u2r, g2r, r2p })
     }
 }
 
@@ -79,6 +87,15 @@ impl HasRbacPermission for Role {
         rbac.r2p
             .get(self)
             .map(|r| r.recognize(p.rbac().as_ref()).is_ok())
+            .unwrap_or(false)
+    }
+}
+
+impl HasRbacPermission for RoleId {
+    fn has_permission<P: RbacPermission>(&self, p: &P, rbac: &RbacManager) -> bool {
+        rbac.g2r
+            .get(self)
+            .map(|roles| roles.iter().any(|role| role.has_permission(p, rbac)))
             .unwrap_or(false)
     }
 }
