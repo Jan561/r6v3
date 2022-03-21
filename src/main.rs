@@ -5,6 +5,7 @@ mod handler;
 mod hook;
 mod owners;
 mod permission;
+mod sql;
 
 use crate::azure::authentication::{load_cert, load_priv_key};
 use crate::azure::{new_azure_client, AzureClientKey};
@@ -52,6 +53,8 @@ pub enum SimpleError {
     ToStrError(#[from] ToStrError),
     #[error("Config error: {}", .0)]
     ConfigError(#[from] ConfigError),
+    #[error("Sql Error: {}", .0)]
+    SqlError(#[from] sqlx::Error),
     #[error("{}", .0)]
     UsageError(String),
 }

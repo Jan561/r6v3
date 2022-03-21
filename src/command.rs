@@ -11,6 +11,7 @@ use tokio::sync::{Mutex, RwLock};
 pub mod ping;
 pub mod start;
 pub mod stop;
+pub mod ts;
 
 pub const CMD_PREFIX: &str = "~";
 

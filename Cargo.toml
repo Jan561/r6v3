@@ -13,7 +13,6 @@ azure_core = "0.1"
 reqwest = "0.11"
 http = "0.2"
 serde = "1"
-openssl = "0.10"
 base64 = "0.13"
 urlencoding = "2"
 bytes = "1"
@@ -38,3 +37,11 @@ version = "0.8"
 [dependencies.tokio]
 features = ["full"]
 version = "1"
+
+[dependencies.sqlx]
+features = ["sqlite", "runtime-tokio-rustls"]
+version = "0.5"
+
+[dependencies.openssl]
+features = ["vendored"]
+version = "0.10"
