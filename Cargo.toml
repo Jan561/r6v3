@@ -25,6 +25,7 @@ env_logger = "0.9"
 config = "0.12"
 route-recognizer = "0.3"
 lazy_static = "1"
+ts3-query = "0.3"
 
 [dependencies.jwt]
 features = ["openssl"]

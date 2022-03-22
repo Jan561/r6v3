@@ -1,6 +1,7 @@
+use crate::command::tri;
 use crate::permission::has_permission;
 use crate::permission::rbac::RbacPermission;
-use crate::sql::model::MemberBuilder;
+use crate::sql::model::{Member, MemberBuilder};
 use crate::sql::SqlKey;
 use crate::SimpleError;
 use serenity::client::Context;
@@ -14,6 +15,7 @@ async fn ts(ctx: &Context, msg: &Message, mut args: Args) -> CommandResult {
 
     match &*sub {
         "connect" => ts_connect(ctx, msg, args).await,
+        "disconnect" => ts_disconnect(ctx, msg).await,
         _ => Err(SimpleError::UsageError(format!("Unknown sub command {}.", sub)).into()),
     }
 }
@@ -22,13 +24,66 @@ async fn ts_connect(ctx: &Context, msg: &Message, mut args: Args) -> CommandResu
     let data = ctx.data.read().await;
     let sql = data.get::<SqlKey>().unwrap();
     let client_uuid = args.single::<String>().unwrap();
-    MemberBuilder::default()
-        .user_id(msg.author.id.0 as i64)
-        .client_uuid(client_uuid)
-        .build()
-        .insert(sql)
-        .await?;
 
+    let existing = Member::get(&sql, msg.author.id.0 as i64, false).await?;
+
+    macro_rules! insert {
+        () => {{
+            MemberBuilder::default()
+                .user_id(msg.author.id.0 as i64)
+                .client_uuid(client_uuid)
+                .insertion_pending(Some(true))
+                .build()
+                .insert(sql)
+                .await
+        }};
+    }
+
+    match existing {
+        Some(mut m) => {
+            if m.insertion_pending() {
+                m.modify(|edit| edit.client_uuid(client_uuid)).await?;
+            } else {
+                m.modify(|edit| edit.removal_pending(Some(true))).await?;
+                insert!()?;
+            }
+        }
+        None => insert!().map(|_| ())?,
+    };
+
+    tri!(
+        msg.reply(ctx, "Successfully connected your teamspeak client.")
+            .await,
+        "Error replying to author"
+    );
+
+    Ok(())
+}
+
+async fn ts_disconnect(ctx: &Context, msg: &Message) -> CommandResult {
+    let data = ctx.data.read().await;
+    let sql = data.get::<SqlKey>().unwrap();
+
+    let mut member = Member::get(sql, msg.author.id.0 as i64, false)
+        .await?
+        .ok_or_else(|| {
+            SimpleError::UsageError(
+                "There is currently no teamspeak client associated with your discord.".to_owned(),
+            )
+        })?;
+
+    if member.insertion_pending() {
+        member.destroy().await?;
+    } else {
+        member
+            .modify(|edit| edit.removal_pending(Some(true)))
+            .await?;
+    }
+
+    tri!(
+        msg.reply(ctx, "Successfully removed the connection.").await,
+        "Error replying to author"
+    );
     Ok(())
 }
 

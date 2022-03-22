@@ -32,7 +32,6 @@ use serenity::model::prelude::CurrentApplicationInfo;
 use serenity::prelude::{SerenityError, TypeMap};
 use sql::{Sql, SqlKey};
 use std::collections::HashSet;
-use tokio::sync::RwLockWriteGuard;
 
 #[derive(thiserror::Error, Debug)]
 pub enum SimpleError {
@@ -60,6 +59,8 @@ pub enum SimpleError {
     SqlError(#[from] sqlx::Error),
     #[error("Migrate Error: {}", .0)]
     MigrateError(#[from] sqlx::migrate::MigrateError),
+    #[error("SQL statement did nothing")]
+    NoRowsAffected,
     #[error("{}", .0)]
     UsageError(String),
 }
@@ -138,7 +139,7 @@ fn owners(app_info: &CurrentApplicationInfo) -> HashSet<UserId> {
     set
 }
 
-async fn data_w<F: FnOnce(&mut RwLockWriteGuard<TypeMap>)>(client: &Client, f: F) {
+async fn data_w<F: FnOnce(&mut TypeMap)>(client: &Client, f: F) {
     let mut data = client.data.write().await;
     f(&mut data);
 }

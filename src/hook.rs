@@ -7,7 +7,7 @@ use crate::{SimpleError, SimpleResult};
 use log::{error, info, warn};
 use serenity::client::Context;
 use serenity::framework::standard::macros::hook;
-use serenity::framework::standard::{CommandError, Args, Delimiter};
+use serenity::framework::standard::{Args, CommandError, Delimiter};
 use serenity::model::channel::Message;
 
 #[hook]

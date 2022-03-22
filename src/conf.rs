@@ -7,6 +7,7 @@ use serenity::prelude::TypeMapKey;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
+use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 pub type Servers = HashMap<String, ServerConfig>;
@@ -75,10 +76,18 @@ pub struct AzureClientConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct TsConfig {
+    pub username: String,
+    pub password: String,
+    pub address: SocketAddr,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct Settings {
     pub discord_token: String,
     pub azure: AzureClientConfig,
     pub servers: Servers,
+    pub ts: TsConfig,
 }
 
 impl Settings {
