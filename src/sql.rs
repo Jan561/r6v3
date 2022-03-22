@@ -1,5 +1,8 @@
+use serenity::prelude::TypeMapKey;
 use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
 use sqlx::{Pool, Sqlite};
+
+use crate::SimpleResult;
 
 pub mod model;
 
@@ -9,7 +12,7 @@ pub struct Sql {
 }
 
 impl Sql {
-    pub async fn new() -> Self {
+    pub async fn new() -> SimpleResult<Self> {
         let connection = SqlitePoolOptions::new()
             .max_connections(5)
             .connect_with(
@@ -17,16 +20,18 @@ impl Sql {
                     .filename("database.sql")
                     .create_if_missing(true),
             )
-            .await
-            .expect("Couldn't connect to database.");
+            .await?;
 
-        sqlx::migrate!()
-            .run(&connection)
-            .await
-            .expect("Couldn't run database migration");
+        sqlx::migrate!().run(&connection).await?;
 
-        Self { connection }
+        Ok(Self { connection })
     }
+}
+
+pub struct SqlKey;
+
+impl TypeMapKey for SqlKey {
+    type Value = Sql;
 }
 
 pub struct NotInserted;

@@ -12,6 +12,7 @@ use crate::azure::{new_azure_client, AzureClientKey};
 use crate::command::ping::PING_COMMAND;
 use crate::command::start::START_COMMAND;
 use crate::command::stop::STOP_COMMAND;
+use crate::command::ts::TS_COMMAND;
 use crate::command::{InstanceLockKey, CMD_PREFIX};
 use crate::conf::{ConfigKey, Settings};
 use crate::handler::Handler;
@@ -23,11 +24,13 @@ use config::ConfigError;
 use http::header::ToStrError;
 use log::error;
 use serenity::client::Client;
-use serenity::framework::standard::{macros::group, StandardFramework};
+use serenity::framework::standard::macros::group;
+use serenity::framework::standard::StandardFramework;
 use serenity::http::Http;
 use serenity::model::id::UserId;
 use serenity::model::prelude::CurrentApplicationInfo;
 use serenity::prelude::{SerenityError, TypeMap};
+use sql::{Sql, SqlKey};
 use std::collections::HashSet;
 use tokio::sync::RwLockWriteGuard;
 
@@ -55,6 +58,8 @@ pub enum SimpleError {
     ConfigError(#[from] ConfigError),
     #[error("Sql Error: {}", .0)]
     SqlError(#[from] sqlx::Error),
+    #[error("Migrate Error: {}", .0)]
+    MigrateError(#[from] sqlx::migrate::MigrateError),
     #[error("{}", .0)]
     UsageError(String),
 }
@@ -68,7 +73,7 @@ impl From<HttpError> for SimpleError {
 pub type SimpleResult<T> = Result<T, SimpleError>;
 
 #[group]
-#[commands(ping, start, stop)]
+#[commands(ping, start, stop, ts)]
 #[only_in(guilds)]
 struct General;
 
@@ -96,12 +101,15 @@ async fn main() {
         .await
         .expect("Error creating client");
 
+    let sql = Sql::new().await.expect("Failed to initialize Sql.");
+
     data_w(&client, |data| {
         data.insert::<Owners>(owners);
         data.insert::<AzureClientKey>(new_azure_client(reqwest::Client::new(), &config.azure));
         data.insert::<ConfigKey>(config);
         data.insert::<RbacKey>(RbacManager::new().expect("Error creating rbac manager."));
         data.insert::<InstanceLockKey>(Default::default());
+        data.insert::<SqlKey>(sql);
     })
     .await;
 

@@ -1,12 +1,13 @@
 use crate::command::ping::PingPermission;
 use crate::command::start::StartPermission;
 use crate::command::stop::StopPermission;
-use crate::permission::{DefaultPermission, HasPermission};
+use crate::command::ts::{ConnectPermission, DisconnectPermission};
+use crate::permission::HasPermission;
 use crate::{SimpleError, SimpleResult};
 use log::{error, info, warn};
 use serenity::client::Context;
 use serenity::framework::standard::macros::hook;
-use serenity::framework::standard::CommandError;
+use serenity::framework::standard::{CommandError, Args, Delimiter};
 use serenity::model::channel::Message;
 
 #[hook]
@@ -93,7 +94,16 @@ async fn has_permission(ctx: &Context, msg: &Message, cmd_name: &str) -> SimpleR
         "ping" => check_permission!(PingPermission),
         "start" => check_permission!(StartPermission::from_message(msg)?),
         "stop" => check_permission!(StopPermission::from_message(msg)?),
-        _ => user.has_permission(ctx, &DefaultPermission).await,
+        "ts" => {
+            let mut args = Args::new(&msg.content, &[Delimiter::Single(' ')]);
+            let subcmd = args.advance().single::<String>().unwrap();
+            match &*subcmd {
+                "connect" => check_permission!(ConnectPermission),
+                "disconnect" => check_permission!(DisconnectPermission),
+                _ => false,
+            }
+        }
+        _ => false,
     };
 
     Ok(r)

@@ -19,8 +19,8 @@ impl MemberBuilder {
         self
     }
 
-    pub fn client_uuid(mut self, client_uuid: Option<String>) -> Self {
-        self.client_uuid = client_uuid;
+    pub fn client_uuid(mut self, client_uuid: String) -> Self {
+        self.client_uuid = Some(client_uuid);
         self
     }
 
@@ -37,7 +37,7 @@ impl MemberBuilder {
     pub fn build(self) -> Member<NotInserted> {
         Member {
             user_id: self.user_id.unwrap(),
-            client_uuid: self.client_uuid.unwrap_or_else(|| "".to_owned()),
+            client_uuid: self.client_uuid.unwrap(),
             insertion_pending: self.insertion_pending.unwrap_or(false),
             removal_pending: self.removal_pending.unwrap_or(false),
             state: NotInserted,
@@ -65,8 +65,8 @@ impl Member<NotInserted> {
             self.insertion_pending,
             self.removal_pending
         )
-            .execute(&sql.connection)
-            .await?;
+        .execute(&sql.connection)
+        .await?;
 
         let s = Member {
             user_id: self.user_id,
@@ -119,8 +119,8 @@ impl Member<Inserted> {
             self.removal_pending,
             self.user_id
         )
-            .execute(&self.state.connection.connection)
-            .await?;
+        .execute(&self.state.connection.connection)
+        .await?;
 
         Ok(())
     }
