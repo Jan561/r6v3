@@ -40,7 +40,7 @@ features = ["full"]
 version = "1"
 
 [dependencies.sqlx]
-features = ["sqlite", "runtime-tokio-rustls"]
+features = ["sqlite", "runtime-tokio-rustls", "offline"]
 version = "0.5"
 
 [dependencies.openssl]
