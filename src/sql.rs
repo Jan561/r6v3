@@ -1,30 +1,36 @@
-use serenity::prelude::TypeMapKey;
-use sqlx::sqlite::{SqliteConnectOptions, SqlitePoolOptions};
-use sqlx::{Pool, Sqlite};
-
 use crate::SimpleResult;
+use diesel::connection::Connection;
+use diesel::r2d2::{ConnectionManager, Pool};
+use diesel::sqlite::SqliteConnection;
+use diesel_migrations::EmbeddedMigrations;
+use diesel_migrations::{embed_migrations, MigrationHarness};
+use serenity::prelude::TypeMapKey;
+use std::env;
+use std::time::Duration;
 
 pub mod model;
 
-#[derive(Debug, Clone)]
+const MIGRATIONS: EmbeddedMigrations = embed_migrations!();
+const DB_CON_TIMEOUT: Duration = Duration::from_secs(60);
+
+#[derive(Clone)]
 pub struct Sql {
-    connection: Pool<Sqlite>,
+    pub connection: Pool<ConnectionManager<SqliteConnection>>,
 }
 
 impl Sql {
-    pub async fn new() -> SimpleResult<Self> {
-        let connection = SqlitePoolOptions::new()
-            .max_connections(5)
-            .connect_with(
-                SqliteConnectOptions::new()
-                    .filename("database.sql")
-                    .create_if_missing(true),
-            )
-            .await?;
-
-        sqlx::migrate!().run(&connection).await?;
-
-        Ok(Self { connection })
+    pub fn new() -> SimpleResult<Self> {
+        let db = env::var("DATABASE_URL").expect("DATABASE_URL must be set.");
+        let mut con = SqliteConnection::establish(&db).unwrap();
+        con.run_pending_migrations(MIGRATIONS)
+            .expect("DB migrations failed");
+        let manager: ConnectionManager<SqliteConnection> = ConnectionManager::new(&db);
+        let r2d2 = diesel::r2d2::Pool::builder()
+            .max_size(10)
+            .connection_timeout(DB_CON_TIMEOUT)
+            .build(manager)
+            .expect("Failed to initialize connection pool.");
+        Ok(Self { connection: r2d2 })
     }
 }
 
@@ -32,9 +38,4 @@ pub struct SqlKey;
 
 impl TypeMapKey for SqlKey {
     type Value = Sql;
-}
-
-pub struct NotInserted;
-pub struct Inserted {
-    connection: Sql,
 }

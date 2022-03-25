@@ -1,3 +1,6 @@
+#[macro_use]
+extern crate diesel;
+
 mod azure;
 mod command;
 mod conf;
@@ -5,6 +8,7 @@ mod handler;
 mod hook;
 mod owners;
 mod permission;
+mod schema;
 mod sql;
 
 use crate::azure::authentication::{load_cert, load_priv_key};
@@ -55,10 +59,10 @@ pub enum SimpleError {
     ToStrError(#[from] ToStrError),
     #[error("Config error: {}", .0)]
     ConfigError(#[from] ConfigError),
-    #[error("Sql Error: {}", .0)]
-    SqlError(#[from] sqlx::Error),
-    #[error("Migrate Error: {}", .0)]
-    MigrateError(#[from] sqlx::migrate::MigrateError),
+    #[error("DB connection error: {}", .0)]
+    DbConnectionError(#[from] diesel::result::ConnectionError),
+    #[error("Diesel Error: {}", .0)]
+    DieselError(#[from] diesel::result::Error),
     #[error("SQL statement did nothing")]
     NoRowsAffected,
     #[error("{}", .0)]
@@ -102,7 +106,7 @@ async fn main() {
         .await
         .expect("Error creating client");
 
-    let sql = Sql::new().await.expect("Failed to initialize Sql.");
+    let sql = Sql::new().expect("Failed to initialize Sql.");
 
     data_w(&client, |data| {
         data.insert::<Owners>(owners);

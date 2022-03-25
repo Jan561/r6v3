@@ -39,9 +39,12 @@ version = "0.8"
 features = ["full"]
 version = "1"
 
-[dependencies.sqlx]
-features = ["sqlite", "runtime-tokio-rustls", "offline"]
-version = "0.5"
+[dependencies.diesel]
+features = ["sqlite", "r2d2"]
+git = "https://github.com/diesel-rs/diesel"
+
+[dependencies.diesel_migrations]
+git = "https://github.com/diesel-rs/diesel"
 
 [dependencies.openssl]
 features = ["vendored"]

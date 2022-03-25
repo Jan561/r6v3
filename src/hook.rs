@@ -50,7 +50,11 @@ pub async fn after_hook(
     res: Result<(), CommandError>,
 ) {
     if let Err(why) = res {
-        handle_error(why.downcast_ref::<SimpleError>().unwrap(), ctx, msg).await;
+        if let Some(e) = why.downcast_ref::<SimpleError>() {
+            handle_error(e, ctx, msg).await;
+        } else {
+            error!("Unknown Error: {}", why);
+        }
     } else {
         info!(
             "Successfully processed command {} from user {}#{} ({}).",
