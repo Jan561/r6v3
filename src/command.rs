@@ -79,6 +79,14 @@ impl InstanceLocks {
     }
 }
 
+macro_rules! usage_error_ {
+    ($($args:expr),* $(,)?) => {
+        $crate::SimpleError::UsageError(format!($($args),*))
+    }
+}
+
+use usage_error_ as usage_error;
+
 pub type InstanceLock = Arc<Mutex<()>>;
 
 macro_rules! instance_lock_ {

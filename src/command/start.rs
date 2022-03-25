@@ -1,6 +1,6 @@
 use crate::azure::management::vm::VmClient;
 use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
-use crate::command::{instance_lock, progress, stop_on_timeout, ProgressMessage};
+use crate::command::{instance_lock, progress, stop_on_timeout, usage_error, ProgressMessage};
 use crate::permission::has_permission;
 use crate::permission::rbac::RbacPermission;
 use crate::{AzureClientKey, ConfigKey, SimpleError, SimpleResult, CMD_PREFIX};
@@ -30,7 +30,7 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     let server_conf = config
         .servers
         .get(s_name)
-        .ok_or_else(|| SimpleError::UsageError("Invalid instance.".to_owned()))?;
+        .ok_or_else(|| usage_error!("Invalid instance."))?;
 
     let mut progress = ProgressMessage::new(msg);
 
@@ -139,10 +139,7 @@ fn server_name(msg: &Message) -> SimpleResult<&str> {
     if offset < msg.content.len() {
         Ok(&msg.content[offset..])
     } else {
-        Err(SimpleError::UsageError(format!(
-            "Syntax: {}start <instance>.",
-            CMD_PREFIX
-        )))
+        Err(usage_error!("Syntax: {}start <instance>.", CMD_PREFIX,))
     }
 }
 

@@ -1,6 +1,6 @@
 use crate::azure::management::vm::VmClient;
 use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
-use crate::command::{instance_lock, progress, ProgressMessage};
+use crate::command::{instance_lock, progress, usage_error, ProgressMessage};
 use crate::permission::has_permission;
 use crate::permission::rbac::RbacPermission;
 use crate::{AzureClientKey, ConfigKey, SimpleError, SimpleResult, CMD_PREFIX};
@@ -30,7 +30,7 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
     let server_conf = config
         .servers
         .get(s_name)
-        .ok_or_else(|| SimpleError::UsageError("Invalid instance.".to_owned()))?;
+        .ok_or_else(|| usage_error!("Invalid instance."))?;
 
     progress!(progress_message, ctx, "Executing stop script  ...");
     info!("Executing stop script on {}.", s_name);
@@ -92,10 +92,7 @@ fn server_name(msg: &Message) -> SimpleResult<&str> {
     if offset < msg.content.len() {
         Ok(&msg.content[offset..])
     } else {
-        Err(SimpleError::UsageError(format!(
-            "Syntax: {}stop <instance>.",
-            CMD_PREFIX
-        )))
+        Err(usage_error!("Syntax: {}stop <instance>.", CMD_PREFIX,))
     }
 }
 
