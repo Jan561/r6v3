@@ -63,19 +63,9 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
     // Waiting for server to be ready, or timeout after 120 seconds
     let loop_start = SystemTime::now();
 
-    loop {
+    let ready = loop {
         if SystemTime::now().duration_since(loop_start).unwrap() > TIMEOUT {
-            client
-                .deallocate(
-                    &server_conf.vm.sub,
-                    &server_conf.vm.rg,
-                    &server_conf.vm.name,
-                )
-                .await?
-                .wait()
-                .await?;
-
-            return Err(SimpleError::Timeout.into());
+            break Err(SimpleError::Timeout);
         }
 
         let instance = client
@@ -95,11 +85,19 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
             })
             .unwrap_or(false)
         {
-            break;
+            break Ok(());
         }
 
         sleep(Duration::from_secs(10)).await;
-    }
+    };
+
+    stop_on_timeout!(
+        ready,
+        client,
+        &server_conf.vm.sub,
+        &server_conf.vm.rg,
+        &server_conf.vm.name
+    )?;
 
     let file = fs::read(&server_conf.start_script.as_ref().unwrap())?;
     let script = ShellCommand {
