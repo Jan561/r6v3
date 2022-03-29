@@ -4,5 +4,6 @@ table! {
         client_uuid -> Text,
         insertion_pending -> Bool,
         removal_pending -> Bool,
+        instance -> Text,
     }
 }

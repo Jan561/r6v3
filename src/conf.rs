@@ -46,6 +46,7 @@ pub struct ServerConfig {
     pub start_script: Option<PathBuf>,
     #[serde(deserialize_with = "deserialize_path_opt")]
     pub stop_script: Option<PathBuf>,
+    pub ts: Option<TsConfig>,
 }
 
 fn deserialize_path_opt<'de, D>(d: D) -> Result<Option<PathBuf>, D::Error>
@@ -87,7 +88,6 @@ pub struct Settings {
     pub discord_token: String,
     pub azure: AzureClientConfig,
     pub servers: Servers,
-    pub ts: TsConfig,
 }
 
 impl Settings {

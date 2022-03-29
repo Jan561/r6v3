@@ -26,6 +26,7 @@ config = "0.12"
 route-recognizer = "0.3"
 lazy_static = "1"
 ts3-query = "0.3"
+futures = "0.3"
 
 [dependencies.jwt]
 features = ["openssl"]
@@ -40,7 +41,7 @@ features = ["full"]
 version = "1"
 
 [dependencies.diesel]
-features = ["sqlite", "r2d2"]
+features = ["sqlite", "r2d2", "returning_clauses_for_sqlite_3_35"]
 git = "https://github.com/diesel-rs/diesel"
 
 [dependencies.diesel_migrations]

@@ -3,6 +3,8 @@ use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
 use crate::command::{instance_lock, progress, stop_on_timeout, usage_error, ProgressMessage};
 use crate::permission::has_permission;
 use crate::permission::rbac::RbacPermission;
+use crate::ts::TsWorkerChannels;
+use crate::worker::spawn_ts_worker;
 use crate::{AzureClientKey, ConfigKey, SimpleError, SimpleResult, CMD_PREFIX};
 use log::info;
 use serenity::client::Context;
@@ -11,6 +13,7 @@ use serenity::framework::standard::CommandResult;
 use serenity::model::channel::Message;
 use std::fs;
 use std::time::{Duration, SystemTime};
+use tokio::sync::Mutex;
 use tokio::time::sleep;
 
 const TIMEOUT: Duration = Duration::from_secs(120);
@@ -130,6 +133,12 @@ async fn start(ctx: &Context, msg: &Message) -> CommandResult {
 
     progress!(progress, ctx, "Started the server.");
     info!("Successfully started {}.", s_name);
+
+    if config.servers[s_name].ts.is_some() {
+        let tx = spawn_ts_worker(ctx.clone(), s_name);
+        let mut channels = data.get::<TsWorkerChannels>().unwrap().write().await;
+        channels.insert(s_name.to_owned(), Mutex::new(tx));
+    }
 
     Ok(())
 }

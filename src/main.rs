@@ -10,6 +10,8 @@ mod owners;
 mod permission;
 mod schema;
 mod sql;
+mod ts;
+mod worker;
 
 use crate::azure::authentication::{load_cert, load_priv_key};
 use crate::azure::{new_azure_client, AzureClientKey};
@@ -36,6 +38,7 @@ use serenity::model::prelude::CurrentApplicationInfo;
 use serenity::prelude::{SerenityError, TypeMap};
 use sql::{Sql, SqlKey};
 use std::collections::HashSet;
+use ts::TsWorkerChannels;
 
 #[derive(thiserror::Error, Debug)]
 pub enum SimpleError {
@@ -63,8 +66,6 @@ pub enum SimpleError {
     DbConnectionError(#[from] diesel::result::ConnectionError),
     #[error("Diesel Error: {}", .0)]
     DieselError(#[from] diesel::result::Error),
-    #[error("SQL statement did nothing")]
-    NoRowsAffected,
     #[error("{}", .0)]
     UsageError(String),
 }
@@ -94,12 +95,11 @@ async fn main() {
     let owners = owners(&app_info);
 
     let framework = StandardFramework::new()
-        .configure(|c| c.prefix(CMD_PREFIX)) // set the bot's prefix to "~"
+        .configure(|c| c.prefix(CMD_PREFIX))
         .group(&GENERAL_GROUP)
         .before(before_hook)
         .after(after_hook);
 
-    // Login with a bot token from the environment
     let mut client = Client::builder(token)
         .event_handler(Handler)
         .framework(framework)
@@ -115,6 +115,7 @@ async fn main() {
         data.insert::<RbacKey>(RbacManager::new().expect("Error creating rbac manager."));
         data.insert::<InstanceLockKey>(Default::default());
         data.insert::<SqlKey>(sql);
+        data.insert::<TsWorkerChannels>(Default::default());
     })
     .await;
 
