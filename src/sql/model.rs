@@ -5,7 +5,7 @@ use diesel::{Identifiable, Insertable, Queryable, SqliteConnection};
 
 #[derive(Queryable, Insertable, Identifiable)]
 #[diesel(table_name = ts_members)]
-#[diesel(primary_key(user_id, removal_pending))]
+#[diesel(primary_key(user_id, removal_pending, instance))]
 pub struct TsMember {
     pub user_id: i64,
     pub client_uuid: String,
