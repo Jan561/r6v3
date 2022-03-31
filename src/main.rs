@@ -66,6 +66,8 @@ pub enum SimpleError {
     DbConnectionError(#[from] diesel::result::ConnectionError),
     #[error("Diesel Error: {}", .0)]
     DieselError(#[from] diesel::result::Error),
+    #[error("TS3 Error: {}", .0)]
+    Ts3Error(#[from] ts3_query::Ts3Error),
     #[error("{}", .0)]
     UsageError(String),
 }

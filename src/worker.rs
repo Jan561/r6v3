@@ -5,10 +5,12 @@ use diesel::{Connection, SqliteConnection};
 use log::{error, info};
 use serenity::client::Context;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::time::sleep;
+
+const TS_WORKER_INTERVAL: Duration = Duration::from_secs(300);
 
 pub enum TsMessage {
     Stop,
@@ -29,13 +31,22 @@ pub async fn ts_worker(ctx: Context, mut rx: mpsc::Receiver<TsMessage>, instance
     let ctx = Arc::new(ctx);
 
     loop {
-        let msg = rx.try_recv().map_or_else(
-            |e| match e {
-                TryRecvError::Empty => None,
-                TryRecvError::Disconnected => Some(TsMessage::Stop),
-            },
-            Some,
-        );
+        let begin = SystemTime::now();
+        let msg = loop {
+            let msg = rx.try_recv().map_or_else(
+                |e| match e {
+                    TryRecvError::Empty => None,
+                    TryRecvError::Disconnected => Some(TsMessage::Stop),
+                },
+                Some,
+            );
+
+            if msg.is_some()
+                || SystemTime::now().duration_since(begin).unwrap() > TS_WORKER_INTERVAL
+            {
+                break msg;
+            }
+        };
 
         if let Some(TsMessage::Stop) = msg {
             info!("Shutting down TS Worker.");
@@ -52,8 +63,6 @@ pub async fn ts_worker(ctx: Context, mut rx: mpsc::Receiver<TsMessage>, instance
         if let Err(why) = res {
             error!("Error in TS worker: {:?}", why);
         }
-
-        sleep(Duration::from_secs(1)).await;
     }
 }
 

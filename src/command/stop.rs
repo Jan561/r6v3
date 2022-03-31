@@ -42,7 +42,7 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
                 .await
                 .send(TsMessage::Stop)
                 .await
-                .unwrap_or_else(|_| panic!("Channel is broken.")),
+                .unwrap_or_else(|_| warn!("TS Worker channel is broken.")),
             None => warn!("TS Worker channel not present, can't stop the worker."),
         }
     }

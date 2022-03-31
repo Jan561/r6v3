@@ -25,7 +25,6 @@ env_logger = "0.9"
 config = "0.12"
 route-recognizer = "0.3"
 lazy_static = "1"
-ts3-query = "0.3"
 futures = "0.3"
 dotenvy = "0.15"
 
@@ -51,3 +50,7 @@ git = "https://github.com/diesel-rs/diesel"
 [dependencies.openssl]
 features = ["vendored"]
 version = "0.10"
+
+[dependencies.ts3-query]
+features = ["managed"]
+version = "0.3"
