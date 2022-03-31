@@ -27,6 +27,7 @@ route-recognizer = "0.3"
 lazy_static = "1"
 ts3-query = "0.3"
 futures = "0.3"
+dotenvy = "0.15"
 
 [dependencies.jwt]
 features = ["openssl"]

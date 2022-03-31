@@ -16,7 +16,9 @@ pub struct TsMember {
 
 impl TsMember {
     pub fn insert(&self, sql: &mut SqliteConnection) -> SimpleResult<bool> {
-        diesel::insert_into(ts_members::table)
+        use crate::schema::ts_members::dsl::*;
+
+        diesel::insert_into(ts_members)
             .values(self)
             .on_conflict_do_nothing()
             .execute(sql)
@@ -25,29 +27,31 @@ impl TsMember {
     }
 
     pub fn schedule_deletion(
-        user_id: i64,
-        instance: &str,
+        user_id_: i64,
+        instance_: &str,
         sql: &mut SqliteConnection,
     ) -> SimpleResult<bool> {
+        use crate::schema::ts_members::dsl::*;
+
         let mut rows_affected = diesel::delete(
-            ts_members::table
-                .filter(ts_members::user_id.eq(user_id))
-                .filter(ts_members::removal_pending.eq(false))
-                .filter(ts_members::insertion_pending.eq(true))
-                .filter(ts_members::instance.eq(instance)),
+            ts_members
+                .filter(user_id.eq(user_id_))
+                .filter(removal_pending.eq(false))
+                .filter(insertion_pending.eq(true))
+                .filter(instance.eq(instance_)),
         )
         .execute(sql)
         .map_err(SimpleError::DieselError)?;
 
         if rows_affected == 0 {
             rows_affected = diesel::update(
-                ts_members::table
-                    .filter(ts_members::user_id.eq(user_id))
-                    .filter(ts_members::removal_pending.eq(false))
-                    .filter(ts_members::insertion_pending.eq(false))
-                    .filter(ts_members::instance.eq(instance)),
+                ts_members
+                    .filter(user_id.eq(user_id))
+                    .filter(removal_pending.eq(false))
+                    .filter(insertion_pending.eq(false))
+                    .filter(instance.eq(instance)),
             )
-            .set(ts_members::removal_pending.eq(true))
+            .set(removal_pending.eq(true))
             .execute(sql)
             .map_err(SimpleError::DieselError)?;
         }
@@ -57,35 +61,35 @@ impl TsMember {
 
     pub fn delete_removal_pending(
         sql: &mut SqliteConnection,
-        instance: &str,
+        instance_: &str,
     ) -> SimpleResult<Vec<(i64, String)>> {
-        sql.transaction(|c| {
-            diesel::delete(
-                ts_members::table
-                    .filter(ts_members::removal_pending.eq(true))
-                    .filter(ts_members::instance.eq(instance)),
-            )
-            .returning((ts_members::user_id, ts_members::client_uuid))
-            .get_results(c)
-            .map_err(Into::into)
-        })
+        use crate::schema::ts_members::dsl::*;
+
+        diesel::delete(
+            ts_members
+                .filter(removal_pending.eq(true))
+                .filter(instance.eq(instance_)),
+        )
+        .returning((user_id, client_uuid))
+        .get_results(sql)
+        .map_err(Into::into)
     }
 
     pub fn unset_insertion_pending(
         sql: &mut SqliteConnection,
-        instance: &str,
+        instance_: &str,
     ) -> SimpleResult<Vec<(i64, String)>> {
-        sql.transaction(|c| {
-            diesel::update(
-                ts_members::table
-                    .filter(ts_members::insertion_pending.eq(true))
-                    .filter(ts_members::instance.eq(instance)),
-            )
-            .set(ts_members::insertion_pending.eq(false))
-            .returning((ts_members::user_id, ts_members::client_uuid))
-            .get_results(c)
-            .map_err(Into::into)
-        })
+        use crate::schema::ts_members::dsl::*;
+
+        diesel::update(
+            ts_members
+                .filter(insertion_pending.eq(true))
+                .filter(instance.eq(instance_)),
+        )
+        .set(insertion_pending.eq(false))
+        .returning((user_id, client_uuid))
+        .get_results(sql)
+        .map_err(Into::into)
     }
 }
 
@@ -97,9 +101,11 @@ pub struct NewTsMember<'a> {
     pub instance: &'a str,
 }
 
-impl<'a> NewTsMember<'a> {
+impl NewTsMember<'_> {
     pub fn insert(&self, sql: &mut SqliteConnection) -> SimpleResult<bool> {
-        diesel::insert_into(ts_members::table)
+        use crate::schema::ts_members::dsl::*;
+
+        diesel::insert_into(ts_members)
             .values(self)
             .on_conflict_do_nothing()
             .execute(sql)
