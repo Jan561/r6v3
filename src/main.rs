@@ -5,6 +5,7 @@ mod handler;
 mod hook;
 mod owners;
 mod permission;
+mod sql;
 
 use crate::azure::authentication::{load_cert, load_priv_key};
 use crate::azure::{new_azure_client, AzureClientKey};
@@ -17,6 +18,7 @@ use crate::handler::Handler;
 use crate::hook::{after_hook, before_hook};
 use crate::owners::Owners;
 use crate::permission::rbac::{RbacKey, RbacManager};
+use crate::sql::{Sql, SqlKey};
 use azure_core::HttpError;
 use config::ConfigError;
 use http::header::ToStrError;
@@ -93,12 +95,15 @@ async fn main() {
         .await
         .expect("Error creating client");
 
+    let sql = Sql::new().expect("Failed to initialize Sql.");
+
     data_w(&client, |data| {
         data.insert::<Owners>(owners);
         data.insert::<AzureClientKey>(new_azure_client(reqwest::Client::new(), &config.azure));
         data.insert::<ConfigKey>(config);
         data.insert::<RbacKey>(RbacManager::new().expect("Error creating rbac manager."));
         data.insert::<InstanceLockKey>(Default::default());
+        data.insert::<SqlKey>(sql);
     })
     .await;
 
