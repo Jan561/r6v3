@@ -3,8 +3,6 @@ use crate::azure::management::vm_run_cmd::{ShellCommand, VmRunCmdClient};
 use crate::command::{instance_lock, progress, usage_error, ProgressMessage};
 use crate::permission::has_permission;
 use crate::permission::rbac::RbacPermission;
-use crate::ts::TsWorkerChannels;
-use crate::worker::TsMessage;
 use crate::{AzureClientKey, ConfigKey, SimpleError, SimpleResult, CMD_PREFIX};
 use log::{info, warn};
 use serenity::client::Context;
@@ -33,19 +31,6 @@ async fn stop(ctx: &Context, msg: &Message) -> CommandResult {
         .servers
         .get(s_name)
         .ok_or_else(|| usage_error!("Invalid instance."))?;
-
-    if server_conf.ts.is_some() {
-        let mut channels = data.get::<TsWorkerChannels>().unwrap().write().await;
-        match channels.remove(s_name) {
-            Some(c) => c
-                .lock()
-                .await
-                .send(TsMessage::Stop)
-                .await
-                .unwrap_or_else(|_| warn!("TS Worker channel is broken.")),
-            None => warn!("TS Worker channel not present, can't stop the worker."),
-        }
-    }
 
     progress!(progress_message, ctx, "Executing stop script  ...");
     info!("Executing stop script on {}.", s_name);

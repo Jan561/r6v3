@@ -84,7 +84,7 @@ impl AzureClient {
         request: &mut Request,
         scope: TokenScope,
     ) -> SimpleResult<()> {
-        let auth_header = "Bearer ".to_string() + self.token(scope).await?.secret();
+        let auth_header = format!("Bearer {}", self.token(scope).await?.secret());
         request
             .headers_mut()
             .insert("Authorization", auth_header.try_into().unwrap());

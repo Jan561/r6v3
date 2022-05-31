@@ -1,6 +1,3 @@
-#[macro_use]
-extern crate diesel;
-
 mod azure;
 mod command;
 mod conf;
@@ -8,17 +5,12 @@ mod handler;
 mod hook;
 mod owners;
 mod permission;
-mod schema;
-mod sql;
-mod ts;
-mod worker;
 
 use crate::azure::authentication::{load_cert, load_priv_key};
 use crate::azure::{new_azure_client, AzureClientKey};
 use crate::command::ping::PING_COMMAND;
 use crate::command::start::START_COMMAND;
 use crate::command::stop::STOP_COMMAND;
-use crate::command::ts::TS_COMMAND;
 use crate::command::{InstanceLockKey, CMD_PREFIX};
 use crate::conf::{ConfigKey, Settings};
 use crate::handler::Handler;
@@ -36,9 +28,7 @@ use serenity::http::Http;
 use serenity::model::id::UserId;
 use serenity::model::prelude::CurrentApplicationInfo;
 use serenity::prelude::{SerenityError, TypeMap};
-use sql::{Sql, SqlKey};
 use std::collections::HashSet;
-use ts::TsWorkerChannels;
 
 #[derive(thiserror::Error, Debug)]
 pub enum SimpleError {
@@ -62,12 +52,6 @@ pub enum SimpleError {
     ToStrError(#[from] ToStrError),
     #[error("Config error: {}", .0)]
     ConfigError(#[from] ConfigError),
-    #[error("DB connection error: {}", .0)]
-    DbConnectionError(#[from] diesel::result::ConnectionError),
-    #[error("Diesel Error: {}", .0)]
-    DieselError(#[from] diesel::result::Error),
-    #[error("TS3 Error: {}", .0)]
-    Ts3Error(#[from] ts3_query::Ts3Error),
     #[error("{}", .0)]
     UsageError(String),
 }
@@ -81,7 +65,7 @@ impl From<HttpError> for SimpleError {
 pub type SimpleResult<T> = Result<T, SimpleError>;
 
 #[group]
-#[commands(ping, start, stop, ts)]
+#[commands(ping, start, stop)]
 #[only_in(guilds)]
 struct General;
 
@@ -109,16 +93,12 @@ async fn main() {
         .await
         .expect("Error creating client");
 
-    let sql = Sql::new().expect("Failed to initialize Sql.");
-
     data_w(&client, |data| {
         data.insert::<Owners>(owners);
         data.insert::<AzureClientKey>(new_azure_client(reqwest::Client::new(), &config.azure));
         data.insert::<ConfigKey>(config);
         data.insert::<RbacKey>(RbacManager::new().expect("Error creating rbac manager."));
         data.insert::<InstanceLockKey>(Default::default());
-        data.insert::<SqlKey>(sql);
-        data.insert::<TsWorkerChannels>(Default::default());
     })
     .await;
 

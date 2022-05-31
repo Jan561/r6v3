@@ -7,7 +7,6 @@ use serenity::prelude::TypeMapKey;
 use std::borrow::Cow;
 use std::collections::HashMap;
 use std::env;
-use std::net::SocketAddr;
 use std::path::{Path, PathBuf};
 
 pub type Servers = HashMap<String, ServerConfig>;
@@ -46,7 +45,6 @@ pub struct ServerConfig {
     pub start_script: Option<PathBuf>,
     #[serde(deserialize_with = "deserialize_path_opt")]
     pub stop_script: Option<PathBuf>,
-    pub ts: Option<TsConfig>,
 }
 
 fn deserialize_path_opt<'de, D>(d: D) -> Result<Option<PathBuf>, D::Error>
@@ -74,13 +72,6 @@ pub struct AzureClientConfig {
     pub cert_path: PathBuf,
     #[serde(deserialize_with = "deserialize_path")]
     pub cert_key: PathBuf,
-}
-
-#[derive(Debug, Clone, Deserialize)]
-pub struct TsConfig {
-    pub username: String,
-    pub password: String,
-    pub address: SocketAddr,
 }
 
 #[derive(Debug, Clone, Deserialize)]
