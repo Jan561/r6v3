@@ -1,6 +1,9 @@
 -- Your SQL goes here
 CREATE TABLE movie_channels(
-    id INTEGER NOT NULL PRIMARY KEY,
+    id BLOB NOT NULL PRIMARY KEY,
+    uri TEXT NOT NULL,
+    vc BIGINT NOT NULL UNIQUE,
+    bot_msg BIGINT NOT NULL,
     creator BIGINT NOT NULL,
-    created_at TEXT NOT NULL
+    created_at TIMESTAMP NOT NULL
 )

@@ -67,7 +67,7 @@ async fn has_permission(ctx: &Context, msg: &Message, cmd_name: &str) -> SimpleR
 
     macro_rules! check_roles {
         ($perm:expr) => {{
-            match msg.guild(ctx).await {
+            match msg.guild(ctx) {
                 None => false,
                 Some(g) => match g.member(ctx, user).await {
                     Ok(member) => {

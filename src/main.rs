@@ -1,10 +1,15 @@
+#[macro_use]
+extern crate diesel;
+
 mod azure;
 mod command;
 mod conf;
 mod handler;
 mod hook;
+mod movie;
 mod owners;
 mod permission;
+mod schema;
 mod sql;
 
 use crate::azure::authentication::{load_cert, load_priv_key};
@@ -29,7 +34,7 @@ use serenity::framework::standard::StandardFramework;
 use serenity::http::Http;
 use serenity::model::id::UserId;
 use serenity::model::prelude::CurrentApplicationInfo;
-use serenity::prelude::{SerenityError, TypeMap};
+use serenity::prelude::{GatewayIntents, SerenityError, TypeMap};
 use std::collections::HashSet;
 
 #[derive(thiserror::Error, Debug)]
@@ -56,6 +61,12 @@ pub enum SimpleError {
     ConfigError(#[from] ConfigError),
     #[error("{}", .0)]
     UsageError(String),
+    #[error("DB connection error: {}", .0)]
+    DbConnectionError(#[from] diesel::result::ConnectionError),
+    #[error("Diesel Error: {}", .0)]
+    DieselError(#[from] diesel::result::Error),
+    #[error("R2D2 Error: {}", .0)]
+    R2D2Error(#[from] diesel::r2d2::PoolError),
 }
 
 impl From<HttpError> for SimpleError {
@@ -89,7 +100,9 @@ async fn main() {
         .before(before_hook)
         .after(after_hook);
 
-    let mut client = Client::builder(token)
+    let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
+
+    let mut client = Client::builder(token, intents)
         .event_handler(Handler)
         .framework(framework)
         .await
@@ -117,7 +130,7 @@ async fn main() {
 }
 
 fn http(token: &str) -> Http {
-    Http::new_with_token(token)
+    Http::new(token)
 }
 
 async fn app_info(http: &Http) -> CurrentApplicationInfo {

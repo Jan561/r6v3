@@ -1,3 +1,6 @@
+pub mod movie;
+pub mod uuid;
+
 use crate::SimpleResult;
 use diesel::connection::Connection;
 use diesel::r2d2::{ConnectionManager, Pool};

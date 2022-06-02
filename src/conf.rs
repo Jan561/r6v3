@@ -75,10 +75,17 @@ pub struct AzureClientConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct MovieTimeConf {
+    pub text_channel: u64,
+    pub voice_channel: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct Settings {
     pub discord_token: String,
     pub azure: AzureClientConfig,
     pub servers: Servers,
+    pub movie_time: Option<MovieTimeConf>,
 }
 
 impl Settings {
