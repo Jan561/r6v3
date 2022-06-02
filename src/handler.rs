@@ -20,16 +20,30 @@ impl EventHandler for Handler {
     }
 
     async fn message(&self, ctx: Context, msg: Message) {
-        let mt_channel = {
-            let data = ctx.data.read().await;
-            let conf = data.get::<ConfigKey>().unwrap();
-            conf.movie_time.as_ref().map(|x| x.text_channel)
+        let channel = match msg.channel(&ctx).await {
+            Ok(c) => c,
+            Err(why) => {
+                error!("Error getting channel information: {}", why);
+                return;
+            }
         };
 
-        if let Some(channel) = mt_channel {
-            if msg.channel_id == channel && MOVIE_URIS.iter().any(|x| msg.content.starts_with(x)) {
-                if let Err(why) = handle_groupwatch_default_channel(&ctx, &msg).await {
-                    error!("Error processing group watch link: {}", why);
+        if let Some(guild) = channel.guild() {
+            let mt_channel = {
+                let data = ctx.data.read().await;
+                let conf = data.get::<ConfigKey>().unwrap();
+                conf.guilds
+                    .get_by_right(&guild.guild_id)
+                    .and_then(|guild| conf.movie_time.get(guild).map(|x| x.text_channel))
+            };
+
+            if let Some(channel) = mt_channel {
+                if msg.channel_id == channel
+                    && MOVIE_URIS.iter().any(|x| msg.content.starts_with(x))
+                {
+                    if let Err(why) = handle_groupwatch_default_channel(&ctx, &msg).await {
+                        error!("Error processing group watch link: {}", why);
+                    }
                 }
             }
         }

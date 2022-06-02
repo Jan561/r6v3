@@ -51,3 +51,6 @@ git = "https://github.com/diesel-rs/diesel"
 [dependencies.diesel_migrations]
 git = "https://github.com/diesel-rs/diesel"
 
+[dependencies.bimap]
+features = ["serde"]
+version = "0.6"
