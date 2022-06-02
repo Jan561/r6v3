@@ -5,13 +5,13 @@ use chrono::NaiveDateTime;
 use diesel::prelude::*;
 use diesel::{Insertable, Queryable, SqliteConnection};
 
-use super::uuid::UUID;
+use super::uuid::Uuid;
 
 #[derive(Queryable)]
 #[diesel(table_name = movie_channels)]
 #[diesel(primary_key(id))]
 pub struct MovieChannel {
-    pub id: UUID,
+    pub id: Uuid,
     pub uri: String,
     pub vc: i64,
     pub bot_msg: i64,
@@ -22,7 +22,7 @@ pub struct MovieChannel {
 #[derive(Insertable, Debug, Clone, Copy)]
 #[diesel(table_name = movie_channels)]
 pub struct NewMovieChannel<'a> {
-    pub id: UUID,
+    pub id: Uuid,
     pub uri: &'a str,
     pub vc: i64,
     pub bot_msg: i64,
@@ -44,11 +44,11 @@ impl NewMovieChannel<'_> {
 #[derive(Queryable, Identifiable, Debug, Clone, Copy)]
 #[diesel(table_name = movie_channels)]
 pub struct MovieChannelId {
-    id: UUID,
+    id: Uuid,
 }
 
-impl From<UUID> for MovieChannelId {
-    fn from(id: UUID) -> Self {
+impl From<Uuid> for MovieChannelId {
+    fn from(id: Uuid) -> Self {
         Self { id }
     }
 }

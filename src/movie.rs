@@ -1,5 +1,5 @@
 use crate::sql::movie::NewMovieChannel;
-use crate::sql::uuid::UUID;
+use crate::sql::uuid::Uuid;
 use crate::sql::SqlKey;
 use crate::SimpleResult;
 use chrono::Utc;
@@ -10,7 +10,7 @@ use serenity::model::channel::Message;
 use serenity::model::id::UserId;
 use serenity::model::mention::Mention;
 
-pub const MOVIE_URIS: [&'static str; 1] = ["https://www.disneyplus.com/groupwatch/"];
+pub const MOVIE_URIS: [&str; 1] = ["https://www.disneyplus.com/groupwatch/"];
 const DEFAULT_MOVIE_TIME_VC: i64 = 0;
 
 pub fn groupwatch_create_msg(uri: impl AsRef<str>, creator: UserId) -> String {
@@ -26,13 +26,17 @@ pub async fn handle_groupwatch_default_channel(ctx: &Context, msg: &Message) -> 
     let mut sql = data.get::<SqlKey>().unwrap().connection.get()?;
 
     use crate::schema::movie_channels::dsl;
-    let old_bot_msg: Option<i64> = diesel::delete(dsl::movie_channels.filter(dsl::vc.eq(0)))
-        .returning(dsl::bot_msg)
-        .get_result(&mut sql)
-        .optional()?;
+    let old_bot_msg: Option<i64> =
+        diesel::delete(dsl::movie_channels.filter(dsl::vc.eq(DEFAULT_MOVIE_TIME_VC)))
+            .returning(dsl::bot_msg)
+            .get_result(&mut sql)
+            .optional()?;
 
     if let Some(old_msg) = old_bot_msg {
-        msg.channel_id.delete_message(ctx, old_msg as u64).await?;
+        tri!(
+            msg.channel_id.delete_message(ctx, old_msg as u64).await,
+            "Error deleting old message",
+        );
     }
 
     msg.delete(ctx).await?;
@@ -44,10 +48,8 @@ pub async fn handle_groupwatch_default_channel(ctx: &Context, msg: &Message) -> 
         .say(ctx, groupwatch_create_msg(&msg.content, msg.author.id))
         .await?;
 
-    new_msg.pin(ctx).await?;
-
     let new_movie_channel = NewMovieChannel {
-        id: UUID::random(),
+        id: Uuid::random(),
         uri: &new_msg.content,
         vc: DEFAULT_MOVIE_TIME_VC,
         bot_msg: new_msg.id.0 as i64,

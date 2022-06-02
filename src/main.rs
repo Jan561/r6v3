@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate diesel;
 
+#[macro_use]
+mod macros;
+
 mod azure;
 mod command;
 mod conf;

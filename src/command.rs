@@ -102,19 +102,9 @@ macro_rules! instance_lock_ {
 
 use instance_lock_ as instance_lock;
 
-macro_rules! _tri {
-    ($res:expr, $log:expr) => {
-        if let Err(why) = $res {
-            log::warn!("{}: {:?}.", $log, why);
-        }
-    };
-}
-
-use _tri as tri;
-
 macro_rules! _progress {
     ($progress:expr, $ctx:expr, $msg:expr) => {
-        $crate::command::tri!(
+        tri!(
             $progress.update($ctx, $msg).await,
             "Error updating progress message"
         );
