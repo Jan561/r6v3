@@ -1,10 +1,12 @@
+use std::sync::atomic::{AtomicBool, Ordering};
+
 use crate::conf::ConfigKey;
 use crate::movie::worker::{spawn_movie_worker, Message as WorkerMessage, WorkerChannel};
 use crate::movie::{handle_groupwatch_default_channel, MOVIE_URIS};
 use crate::sql::movie::uuid_from_vc;
 use crate::sql::SqlKey;
 use async_trait::async_trait;
-use log::{error, info};
+use log::{debug, error, info};
 use serenity::client::{Context, EventHandler};
 use serenity::model::channel::Message;
 use serenity::model::gateway::Activity;
@@ -12,7 +14,10 @@ use serenity::model::id::ChannelId;
 use serenity::model::id::GuildId;
 use serenity::model::voice::VoiceState;
 
-pub struct Handler;
+#[derive(Default)]
+pub struct Handler {
+    movie_worker_spawned: AtomicBool,
+}
 
 #[async_trait]
 impl EventHandler for Handler {
@@ -22,6 +27,12 @@ impl EventHandler for Handler {
         let activity = Activity::playing("Powered by https://www.rust-lang.org/");
 
         ctx.set_activity(activity).await;
+
+        let worker_running = self.movie_worker_spawned.swap(true, Ordering::Relaxed);
+
+        if worker_running {
+            return;
+        }
 
         let tx = spawn_movie_worker(ctx.clone());
 
@@ -53,6 +64,11 @@ impl EventHandler for Handler {
                 if msg.channel_id == channel
                     && MOVIE_URIS.iter().any(|x| msg.content.starts_with(x))
                 {
+                    debug!(
+                        "Received group watch link in default channel of guild {} from user {}#{}.",
+                        guild.guild_id, msg.author.name, msg.author.discriminator
+                    );
+
                     if let Err(why) =
                         handle_groupwatch_default_channel(&ctx, ChannelId(channel), &msg).await
                     {
