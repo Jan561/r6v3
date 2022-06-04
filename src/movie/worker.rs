@@ -70,7 +70,10 @@ async fn movie_worker(ctx: Context, mut rx: mpsc::Receiver<Message>) {
 
         keep_alive.retain(|&id, &mut t| {
             if SystemTime::now().duration_since(t).unwrap() > MOVIE_MAX_INACTIVE {
-                debug!("Deleting group watch with uuid {}", id);
+                debug!(
+                    "Inactivity timeout reached for group watch {}, deleting it.",
+                    id
+                );
                 uuids.push(id);
                 join_set.push(delete_channel(&ctx, id));
                 false
@@ -79,14 +82,12 @@ async fn movie_worker(ctx: Context, mut rx: mpsc::Receiver<Message>) {
             }
         });
 
-        futures::future::join_all(join_set)
-            .await
-            .into_iter()
-            .enumerate()
-            .for_each(|(i, res)| match res {
+        for (i, j) in join_set.into_iter().enumerate() {
+            match j.await {
                 Ok(true) => debug!("Successfully deleted group watch {}", uuids[i]),
                 Ok(false) => warn!("Group watch not found in database: {}", uuids[i]),
                 Err(why) => warn!("Error deleting group watch {}: {}", uuids[i], why),
-            });
+            }
+        }
     }
 }
