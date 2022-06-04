@@ -1,13 +1,12 @@
+use super::delete_channel;
 use crate::sql::uuid::Uuid;
-use log::info;
+use log::{debug, info, warn};
 use serenity::client::Context;
 use serenity::prelude::TypeMapKey;
 use std::collections::HashMap;
 use std::time::{Duration, SystemTime};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
-
-use super::delete_channel;
 
 const MOVIE_CHECK_INTERVAL: Duration = Duration::from_secs(5);
 const MOVIE_MAX_INACTIVE: Duration = Duration::from_secs(20);
@@ -66,13 +65,28 @@ async fn movie_worker(ctx: Context, mut rx: mpsc::Receiver<Message>) {
             }
         }
 
-        for (&id, &t) in keep_alive.iter() {
+        let mut uuids = Vec::new();
+        let mut join_set = Vec::new();
+
+        keep_alive.retain(|&id, &mut t| {
             if SystemTime::now().duration_since(t).unwrap() > MOVIE_MAX_INACTIVE {
-                tri!(
-                    delete_channel(&ctx, id).await,
-                    "Failed to delete group watch channel"
-                );
+                debug!("Deleting group watch with uuid {}", id);
+                uuids.push(id);
+                join_set.push(delete_channel(&ctx, id));
+                false
+            } else {
+                true
             }
-        }
+        });
+
+        futures::future::join_all(join_set)
+            .await
+            .into_iter()
+            .enumerate()
+            .for_each(|(i, res)| match res {
+                Ok(true) => debug!("Successfully deleted group watch {}", uuids[i]),
+                Ok(false) => warn!("Group watch not found in database: {}", uuids[i]),
+                Err(why) => warn!("Error deleting group watch {}: {}", uuids[i], why),
+            });
     }
 }
