@@ -4,6 +4,7 @@ use log::{debug, info, warn};
 use serenity::client::Context;
 use serenity::prelude::TypeMapKey;
 use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::mpsc;
 use tokio::sync::mpsc::error::TryRecvError;
@@ -23,7 +24,7 @@ pub enum Message {
     KeepAlive(Uuid),
 }
 
-pub fn spawn_movie_worker(ctx: Context) -> mpsc::Sender<Message> {
+pub fn spawn_movie_worker(ctx: Arc<Context>) -> mpsc::Sender<Message> {
     info!("Spawning movie worker.");
 
     let (tx, rx) = mpsc::channel(10);
@@ -33,8 +34,11 @@ pub fn spawn_movie_worker(ctx: Context) -> mpsc::Sender<Message> {
     tx
 }
 
-async fn movie_worker(ctx: Context, mut rx: mpsc::Receiver<Message>) {
+async fn movie_worker(ctx: Arc<Context>, mut rx: mpsc::Receiver<Message>) {
     let mut keep_alive = HashMap::new();
+
+    let mut join_set = Vec::new();
+    let mut uuids = Vec::new();
 
     loop {
         let begin = SystemTime::now();
@@ -62,11 +66,10 @@ async fn movie_worker(ctx: Context, mut rx: mpsc::Receiver<Message>) {
 
             if SystemTime::now().duration_since(begin).unwrap() > MOVIE_CHECK_INTERVAL {
                 break;
+            } else {
+                tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
-
-        let mut uuids = Vec::new();
-        let mut join_set = Vec::new();
 
         keep_alive.retain(|&id, &mut t| {
             if SystemTime::now().duration_since(t).unwrap() > MOVIE_MAX_INACTIVE {
@@ -82,7 +85,7 @@ async fn movie_worker(ctx: Context, mut rx: mpsc::Receiver<Message>) {
             }
         });
 
-        for (i, j) in join_set.into_iter().enumerate() {
+        for (i, j) in join_set.drain(..).enumerate() {
             match j.await {
                 Ok(true) => debug!("Successfully deleted group watch {}", uuids[i]),
                 Ok(false) => warn!("Group watch not found in database: {}", uuids[i]),

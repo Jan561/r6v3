@@ -15,6 +15,7 @@ pub struct NewMovieChannel<'a> {
     pub vc: i64,
     pub bot_msg_channel_id: i64,
     pub bot_msg: i64,
+    pub guild: i64,
     pub creator: i64,
     pub created_at: NaiveDateTime,
 }

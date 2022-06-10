@@ -14,6 +14,7 @@ mod owners;
 mod permission;
 mod schema;
 mod sql;
+mod voice;
 
 use crate::azure::authentication::{load_cert, load_priv_key};
 use crate::azure::{new_azure_client, AzureClientKey};
@@ -31,7 +32,7 @@ use azure_core::HttpError;
 use config::ConfigError;
 use http::header::ToStrError;
 use log::error;
-use serenity::client::Client;
+use serenity::client::{Client, ClientBuilder};
 use serenity::framework::standard::macros::group;
 use serenity::framework::standard::StandardFramework;
 use serenity::http::Http;
@@ -93,7 +94,7 @@ async fn main() {
     let config = Settings::new().expect("Error reading config");
     let token = &config.discord_token;
 
-    let http = http(token.as_str());
+    let mut http = http(token.as_str());
     let app_info = app_info(&http).await;
     let owners = owners(&app_info);
 
@@ -105,7 +106,8 @@ async fn main() {
 
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
 
-    let mut client = Client::builder(token, intents)
+    http.ratelimiter_disabled = true;
+    let mut client = ClientBuilder::new_with_http(http, intents)
         .event_handler(Handler::default())
         .framework(framework)
         .await

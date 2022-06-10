@@ -4,10 +4,11 @@ use crate::movie::worker::{Message as WorkerMessage, WorkerChannel};
 use crate::sql::movie::NewMovieChannel;
 use crate::sql::uuid::Uuid;
 use crate::sql::SqlKey;
+use crate::voice::vc_is_empty;
 use crate::SimpleResult;
 use chrono::Utc;
 use diesel::prelude::*;
-use log::warn;
+use log::{debug, warn};
 use serenity::client::Context;
 use serenity::model::channel::Message;
 use serenity::model::id::{ChannelId, MessageId, UserId};
@@ -60,6 +61,7 @@ pub async fn handle_groupwatch_default_channel(
         vc: vc.0 as i64,
         bot_msg_channel_id: new_msg.channel_id.0 as i64,
         bot_msg: new_msg.id.0 as i64,
+        guild: msg.guild_id.unwrap().0 as i64,
         creator: new_msg.author.id.0 as i64,
         created_at: Utc::now().naive_utc(),
     };
@@ -69,14 +71,31 @@ pub async fn handle_groupwatch_default_channel(
     match result {
         Some(uuid) => {
             let tx = data.get::<WorkerChannel>().unwrap();
+            let guild = msg.guild(ctx).unwrap();
 
-            if let Err(why) = tx.send(WorkerMessage::Inactive(uuid)).await {
-                warn!("Reciever dropped channel message: {}", why);
-            };
+            debug!(
+                "Successfully created group watch for {}#{} ({}) with uuid {}.",
+                msg.author.name, msg.author.discriminator, msg.author.id, uuid
+            );
+
+            if vc_is_empty(&guild, vc) {
+                debug!(
+                    "New group watch currently empty, starting inactivity countdown: {}",
+                    uuid
+                );
+                if let Err(why) = tx.send(WorkerMessage::Inactive(uuid)).await {
+                    warn!("Reciever dropped channel message: {}", why);
+                };
+            }
         }
         None => {
-            warn!("Failed storing new group watch for default channel in DB, deleting it.");
-            new_msg.delete(ctx).await?;
+            warn!(
+                "Failed to insert new group watch entry for default channel into DB, deleting it."
+            );
+            tri!(
+                new_msg.delete(ctx).await,
+                "Error deleting group watch message"
+            );
         }
     }
 

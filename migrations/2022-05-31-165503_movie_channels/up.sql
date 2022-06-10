@@ -5,6 +5,7 @@ CREATE TABLE movie_channels(
     vc BIGINT NOT NULL UNIQUE,
     bot_msg_channel_id BIGINT NOT NULL,
     bot_msg BIGINT NOT NULL,
+    guild BIGINT NOT NULL,
     creator BIGINT NOT NULL,
     created_at TIMESTAMP NOT NULL
 )
