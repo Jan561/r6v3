@@ -1,8 +1,10 @@
 use crate::azure::{AzureId, AzureName, ClientId, Directory};
 use crate::SimpleResult;
+use bimap::BiMap;
 use config::{Config, File, FileFormat};
 use lazy_static::lazy_static;
 use serde::{Deserialize, Deserializer};
+use serenity::model::id::GuildId;
 use serenity::prelude::TypeMapKey;
 use std::borrow::Cow;
 use std::collections::HashMap;
@@ -75,10 +77,18 @@ pub struct AzureClientConfig {
 }
 
 #[derive(Debug, Clone, Deserialize)]
+pub struct MovieTimeConf {
+    pub text_channel: u64,
+    pub voice_channel: u64,
+}
+
+#[derive(Debug, Clone, Deserialize)]
 pub struct Settings {
     pub discord_token: String,
     pub azure: AzureClientConfig,
     pub servers: Servers,
+    pub guilds: BiMap<String, GuildId>,
+    pub movie_time: HashMap<String, MovieTimeConf>,
 }
 
 impl Settings {

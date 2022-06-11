@@ -1,10 +1,20 @@
+#[macro_use]
+extern crate diesel;
+
+#[macro_use]
+mod macros;
+
 mod azure;
 mod command;
 mod conf;
 mod handler;
 mod hook;
+mod movie;
 mod owners;
 mod permission;
+mod schema;
+mod sql;
+mod voice;
 
 use crate::azure::authentication::{load_cert, load_priv_key};
 use crate::azure::{new_azure_client, AzureClientKey};
@@ -17,17 +27,18 @@ use crate::handler::Handler;
 use crate::hook::{after_hook, before_hook};
 use crate::owners::Owners;
 use crate::permission::rbac::{RbacKey, RbacManager};
+use crate::sql::{Sql, SqlKey};
 use azure_core::HttpError;
 use config::ConfigError;
 use http::header::ToStrError;
 use log::error;
-use serenity::client::Client;
+use serenity::client::{Client, ClientBuilder};
 use serenity::framework::standard::macros::group;
 use serenity::framework::standard::StandardFramework;
 use serenity::http::Http;
 use serenity::model::id::UserId;
 use serenity::model::prelude::CurrentApplicationInfo;
-use serenity::prelude::{SerenityError, TypeMap};
+use serenity::prelude::{GatewayIntents, SerenityError, TypeMap};
 use std::collections::HashSet;
 
 #[derive(thiserror::Error, Debug)]
@@ -54,6 +65,12 @@ pub enum SimpleError {
     ConfigError(#[from] ConfigError),
     #[error("{}", .0)]
     UsageError(String),
+    #[error("DB connection error: {}", .0)]
+    DbConnectionError(#[from] diesel::result::ConnectionError),
+    #[error("Diesel Error: {}", .0)]
+    DieselError(#[from] diesel::result::Error),
+    #[error("R2D2 Error: {}", .0)]
+    R2D2Error(#[from] diesel::r2d2::PoolError),
 }
 
 impl From<HttpError> for SimpleError {
@@ -77,7 +94,7 @@ async fn main() {
     let config = Settings::new().expect("Error reading config");
     let token = &config.discord_token;
 
-    let http = http(token.as_str());
+    let mut http = http(token.as_str());
     let app_info = app_info(&http).await;
     let owners = owners(&app_info);
 
@@ -87,11 +104,16 @@ async fn main() {
         .before(before_hook)
         .after(after_hook);
 
-    let mut client = Client::builder(token)
-        .event_handler(Handler)
+    let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
+
+    http.ratelimiter_disabled = true;
+    let mut client = ClientBuilder::new_with_http(http, intents)
+        .event_handler(Handler::default())
         .framework(framework)
         .await
         .expect("Error creating client");
+
+    let sql = Sql::new().expect("Failed to initialize Sql.");
 
     data_w(&client, |data| {
         data.insert::<Owners>(owners);
@@ -99,6 +121,7 @@ async fn main() {
         data.insert::<ConfigKey>(config);
         data.insert::<RbacKey>(RbacManager::new().expect("Error creating rbac manager."));
         data.insert::<InstanceLockKey>(Default::default());
+        data.insert::<SqlKey>(sql);
     })
     .await;
 
@@ -112,7 +135,7 @@ async fn main() {
 }
 
 fn http(token: &str) -> Http {
-    Http::new_with_token(token)
+    Http::new(token)
 }
 
 async fn app_info(http: &Http) -> CurrentApplicationInfo {

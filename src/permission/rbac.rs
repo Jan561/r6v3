@@ -1,5 +1,6 @@
 use crate::SimpleResult;
 use config::{Config, File, FileFormat};
+use lazy_static::lazy_static;
 use route_recognizer::Router;
 use serde::Deserialize;
 use serenity::model::id::{RoleId, UserId};
@@ -22,6 +23,10 @@ impl Deref for Role {
     fn deref(&self) -> &str {
         &self.0
     }
+}
+
+lazy_static! {
+    static ref DEFAULT_ROLE: Role = Role("default".to_owned());
 }
 
 pub type U2r = HashMap<UserId, Vec<Role>>;
@@ -102,9 +107,11 @@ impl HasRbacPermission for RoleId {
 
 impl HasRbacPermission for UserId {
     fn has_permission<P: RbacPermission>(&self, p: &P, rbac: &RbacManager) -> bool {
-        rbac.u2r
-            .get(self)
-            .map(|roles| roles.iter().any(|role| role.has_permission(p, rbac)))
-            .unwrap_or(false)
+        DEFAULT_ROLE.has_permission(p, rbac)
+            || rbac
+                .u2r
+                .get(self)
+                .map(|roles| roles.iter().any(|role| role.has_permission(p, rbac)))
+                .unwrap_or(false)
     }
 }
