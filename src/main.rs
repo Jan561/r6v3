@@ -94,7 +94,7 @@ async fn main() {
     let config = Settings::new().expect("Error reading config");
     let token = &config.discord_token;
 
-    let mut http = http(token.as_str());
+    let http = http(token.as_str());
     let app_info = app_info(&http).await;
     let owners = owners(&app_info);
 
@@ -106,7 +106,6 @@ async fn main() {
 
     let intents = GatewayIntents::non_privileged() | GatewayIntents::MESSAGE_CONTENT;
 
-    http.ratelimiter_disabled = true;
     let mut client = ClientBuilder::new_with_http(http, intents)
         .event_handler(Handler::default())
         .framework(framework)
