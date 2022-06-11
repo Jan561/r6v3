@@ -7,10 +7,9 @@ use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::{Duration, SystemTime};
 use tokio::sync::mpsc;
-use tokio::sync::mpsc::error::TryRecvError;
 
-const MOVIE_CHECK_INTERVAL: Duration = Duration::from_secs(5);
-const MOVIE_MAX_INACTIVE: Duration = Duration::from_secs(20);
+const MOVIE_CHECK_INTERVAL: Duration = Duration::from_secs(30);
+const MOVIE_MAX_INACTIVE: Duration = Duration::from_secs(120);
 
 pub struct WorkerChannel;
 
@@ -22,6 +21,7 @@ impl TypeMapKey for WorkerChannel {
 pub enum Message {
     Inactive(Uuid),
     KeepAlive(Uuid),
+    Delete(Uuid),
 }
 
 pub fn spawn_movie_worker(ctx: Arc<Context>) -> mpsc::Sender<Message> {
@@ -41,33 +41,20 @@ async fn movie_worker(ctx: Arc<Context>, mut rx: mpsc::Receiver<Message>) {
     let mut uuids = Vec::new();
 
     loop {
-        let begin = SystemTime::now();
+        let end = SystemTime::now() + MOVIE_CHECK_INTERVAL;
 
-        loop {
-            let msg = rx.try_recv().map_or_else(
-                |e| match e {
-                    TryRecvError::Empty => None,
-                    TryRecvError::Disconnected => {
-                        panic!("The movie worker channel must not be broken")
+        while let Ok(dur) = end.duration_since(SystemTime::now()) {
+            let msg = tokio::time::timeout(dur, rx.recv()).await;
+
+            if let Ok(Some(msg)) = msg {
+                match msg {
+                    Message::KeepAlive(uuid) | Message::Delete(uuid) => {
+                        keep_alive.remove(&uuid);
                     }
-                },
-                Some,
-            );
-
-            match msg {
-                Some(Message::KeepAlive(uuid)) => {
-                    keep_alive.remove(&uuid);
+                    Message::Inactive(uuid) => {
+                        keep_alive.insert(uuid, SystemTime::now());
+                    }
                 }
-                Some(Message::Inactive(uuid)) => {
-                    keep_alive.insert(uuid, SystemTime::now());
-                }
-                None => (),
-            }
-
-            if SystemTime::now().duration_since(begin).unwrap() > MOVIE_CHECK_INTERVAL {
-                break;
-            } else {
-                tokio::time::sleep(Duration::from_secs(1)).await;
             }
         }
 

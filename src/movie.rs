@@ -33,16 +33,22 @@ pub async fn handle_groupwatch_default_channel(
     let mut sql = data.get::<SqlKey>().unwrap().connection.get()?;
 
     use crate::schema::movie_channels::dsl;
-    let old_bot_msg: Option<i64> =
+    let old_gw: Option<(Uuid, i64)> =
         diesel::delete(dsl::movie_channels.filter(dsl::vc.eq(vc.0 as i64)))
-            .returning(dsl::bot_msg)
+            .returning((dsl::id, dsl::bot_msg))
             .get_result(&mut sql)
             .optional()?;
 
-    if let Some(old_msg) = old_bot_msg {
+    if let Some((uuid, old_msg)) = old_gw {
         tri!(
             msg.channel_id.delete_message(ctx, old_msg as u64).await,
             "Error deleting old message",
+        );
+
+        let tx = data.get::<WorkerChannel>().unwrap();
+        tri!(
+            tx.send(WorkerMessage::Delete(uuid)).await,
+            "Receiver dropped channel message"
         );
     }
 
@@ -83,9 +89,10 @@ pub async fn handle_groupwatch_default_channel(
                     "New group watch currently empty, starting inactivity countdown: {}",
                     uuid
                 );
-                if let Err(why) = tx.send(WorkerMessage::Inactive(uuid)).await {
-                    warn!("Reciever dropped channel message: {}", why);
-                };
+                tri!(
+                    tx.send(WorkerMessage::Inactive(uuid)).await,
+                    "Receiver dropped channel message"
+                );
             }
         }
         None => {
